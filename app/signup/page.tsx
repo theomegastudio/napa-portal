@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { getOrganizations } from '@/lib/services/organizations'
 import { signUpWithMagicLink } from '@/lib/services/auth'
@@ -15,7 +15,7 @@ import { Loader2 } from 'lucide-react'
 import NapaAuthLogo from '@/components/NapaAuthLogo'
 import type { Organization } from '@/lib/types'
 
-export default function SignUpPage() {
+function SignUpForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const emailParam = searchParams.get('email')
@@ -245,5 +245,17 @@ export default function SignUpPage() {
       </div>
     </div>
     </div>
+  )
+}
+
+export default function SignUpPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader2 className="h-8 w-8 animate-spin text-yellow-500" />
+      </div>
+    }>
+      <SignUpForm />
+    </Suspense>
   )
 }
