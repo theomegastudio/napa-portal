@@ -78,7 +78,7 @@ export default function EditResourceDialog({ resource, onSuccess }: EditResource
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon">
+        <Button variant="ghost" size="icon" className="hover:bg-gray-200">
           <Edit className="h-4 w-4" />
         </Button>
       </DialogTrigger>

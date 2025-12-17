@@ -13,7 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toast } from 'sonner'
-import { Loader2, Pencil, Trash2, Search, ArrowLeft } from 'lucide-react'
+import { Loader2, SquarePen, Trash2, Search, ArrowLeft } from 'lucide-react'
 import type { User, Organization } from '@/lib/types'
 
 export default function AdminUsersPage() {
@@ -268,14 +268,15 @@ export default function AdminUsersPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleEditClick(user)}
+                            className="hover:bg-gray-200"
                           >
-                            <Pencil className="h-4 w-4" />
+                            <SquarePen className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDeleteClick(user)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-100"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>

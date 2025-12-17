@@ -50,7 +50,7 @@ export default function ResourceCard({ resource, onDelete, onUpdate, canEdit }: 
                 variant="ghost"
                 size="icon"
                 onClick={() => onDelete(resource.id)}
-                className="text-destructive"
+                className="text-red-600 hover:bg-red-100 hover:text-red-700"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>

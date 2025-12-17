@@ -7,6 +7,7 @@ export function createClient() {
     {
       cookies: {
         get(name: string) {
+          if (typeof document === 'undefined') return null
           const cookieStore = document.cookie
           const cookie = cookieStore
             .split('; ')
@@ -14,6 +15,7 @@ export function createClient() {
           return cookie ? decodeURIComponent(cookie.split('=')[1]) : null
         },
         set(name: string, value: string, options: any) {
+          if (typeof document === 'undefined') return
           let cookie = `${name}=${encodeURIComponent(value)}`
           if (options?.maxAge) {
             cookie += `; max-age=${options.maxAge}`
@@ -30,6 +32,7 @@ export function createClient() {
           document.cookie = cookie
         },
         remove(name: string, options: any) {
+          if (typeof document === 'undefined') return
           const cookie = `${name}=; max-age=0; path=${options?.path || '/'}`
           document.cookie = cookie
         },

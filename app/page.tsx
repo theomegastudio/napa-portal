@@ -237,7 +237,10 @@ export default function App() {
                 resource={resource}
                 onDelete={handleDelete}
                 onUpdate={() => fetchResources(searchText, resourceType)}
-                canEdit={resource.uploaded_by === user.email}
+                canEdit={
+                  resource.uploaded_by === user.email ||
+                  (user.is_admin && user.organization_name === 'National APIDA Panhellenic Association')
+                }
               />
             ))}
           </div>
