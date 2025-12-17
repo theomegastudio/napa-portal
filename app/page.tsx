@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
-import { Search, LogOut, Settings } from "lucide-react"
+import { Search, LogOut, Settings, FileText } from "lucide-react"
 import ResourceCard from "@/components/ResourceCard"
 import UploadResourceDialog from "@/components/UploadResourceDialog"
 import OrganizationSetup from "@/components/OrganizationSetup"
@@ -221,7 +221,7 @@ export default function App() {
           </div>
         ) : resources.length === 0 ? (
           <div className="text-center py-12">
-            <FileStack className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+            <FileText className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">No resources found</h3>
             <p className="text-muted-foreground mb-4">
               {searchText || resourceType !== "all"
