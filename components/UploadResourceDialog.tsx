@@ -83,40 +83,46 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
           Add Resource
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Add New Resource</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="sm:max-w-[550px]">
+        <DialogHeader className="space-y-3">
+          <DialogTitle className="text-xl">Add New Resource</DialogTitle>
+          <DialogDescription className="text-sm">
             Share a policy, procedure, document, or vendor information with other member organizations.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="title">Title *</Label>
+        <form onSubmit={handleSubmit} className="space-y-5 mt-2">
+          <div className="space-y-2">
+            <Label htmlFor="title" className="text-sm font-medium">
+              Title <span className="text-red-500">*</span>
+            </Label>
             <Input
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Enter resource title"
               required
+              className="h-10"
             />
           </div>
 
-          <div>
-            <Label htmlFor="description">Description</Label>
+          <div className="space-y-2">
+            <Label htmlFor="description" className="text-sm font-medium">Description</Label>
             <Textarea
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Provide details about this resource"
               rows={3}
+              className="resize-none"
             />
           </div>
 
-          <div>
-            <Label htmlFor="type">Resource Type *</Label>
+          <div className="space-y-2">
+            <Label htmlFor="type" className="text-sm font-medium">
+              Resource Type <span className="text-red-500">*</span>
+            </Label>
             <Select value={resourceType} onValueChange={setResourceType} required>
-              <SelectTrigger>
+              <SelectTrigger className="h-10">
                 <SelectValue placeholder="Select type" />
               </SelectTrigger>
               <SelectContent>
@@ -128,37 +134,39 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
             </Select>
           </div>
 
-          <div>
-            <Label htmlFor="files">Add Files</Label>
+          <div className="space-y-2">
+            <Label htmlFor="files" className="text-sm font-medium">Add Files</Label>
             <Input
               id="files"
               type="file"
               multiple
               onChange={(e) => setSelectedFiles(Array.from(e.target.files || []))}
+              className="h-10 cursor-pointer"
             />
             {selectedFiles.length > 0 && (
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground">
                 {selectedFiles.length} file(s) selected
               </p>
             )}
           </div>
 
-          <div>
-            <Label htmlFor="link">External Link</Label>
+          <div className="space-y-2">
+            <Label htmlFor="link" className="text-sm font-medium">External Link</Label>
             <Input
               id="link"
               type="url"
               value={externalLink}
               onChange={(e) => setExternalLink(e.target.value)}
               placeholder="https://example.com"
+              className="h-10"
             />
           </div>
 
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} className="h-10">
               Cancel
             </Button>
-            <Button type="submit" disabled={isUploading}>
+            <Button type="submit" disabled={isUploading} className="h-10 bg-yellow-500 hover:bg-yellow-600 text-black">
               {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Add Resource
             </Button>

@@ -81,24 +81,25 @@ export default function ManageMembers({ organizationName }: ManageMembersProps) 
           Manage Members
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Manage Organization Members</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader className="space-y-3">
+          <DialogTitle className="text-xl">Manage Organization Members</DialogTitle>
+          <DialogDescription className="text-sm">
             Invite new members to your organization
           </DialogDescription>
         </DialogHeader>
-        
-        <form onSubmit={handleInvite} className="space-y-4 border-b pb-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <Label htmlFor="email">Email Address</Label>
+
+        <form onSubmit={handleInvite} className="space-y-4 border-b pb-6 mt-2">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-sm font-medium">Email Address</Label>
               <Input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="member@example.com"
+                className="h-10"
               />
             </div>
             <div className="flex items-center space-x-2">
@@ -107,12 +108,12 @@ export default function ManageMembers({ organizationName }: ManageMembersProps) 
                 checked={isAdmin}
                 onCheckedChange={(checked) => setIsAdmin(checked as boolean)}
               />
-              <Label htmlFor="admin" className="cursor-pointer">
+              <Label htmlFor="admin" className="text-sm cursor-pointer font-normal">
                 Make admin
               </Label>
             </div>
           </div>
-          <Button type="submit" disabled={isInviting}>
+          <Button type="submit" disabled={isInviting} className="h-10 bg-yellow-500 hover:bg-yellow-600 text-black">
             {isInviting ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
@@ -122,26 +123,24 @@ export default function ManageMembers({ organizationName }: ManageMembersProps) 
           </Button>
         </form>
 
-        <div className="space-y-2">
-          <h4 className="font-semibold">Current Members</h4>
+        <div className="space-y-3 pt-2">
+          <h4 className="font-semibold text-sm">Current Members</h4>
           {isLoading ? (
-            <div className="flex justify-center py-4">
+            <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : members.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No members found</p>
+            <p className="text-sm text-muted-foreground py-4">No members found</p>
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {members.map((member) => (
                 <div
                   key={member.id}
-                  className="flex items-center justify-between p-3 rounded-lg border"
+                  className="flex items-center justify-between p-3 rounded-lg border bg-gray-50"
                 >
-                  <div>
-                    <p className="font-medium">{member.email}</p>
-                  </div>
+                  <p className="text-sm font-medium">{member.email}</p>
                   {member.is_admin && (
-                    <Badge variant="secondary">
+                    <Badge variant="secondary" className="text-xs">
                       <Shield className="mr-1 h-3 w-3" />
                       Admin
                     </Badge>
