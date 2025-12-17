@@ -1,0 +1,27 @@
+import Image from 'next/image'
+
+interface NapaAuthLogoProps {
+  size?: 'sm' | 'md' | 'lg'
+  className?: string
+}
+
+export default function NapaAuthLogo({ size = 'md', className = '' }: NapaAuthLogoProps) {
+  const dimensions = {
+    sm: 32,
+    md: 48,
+    lg: 64
+  }
+
+  return (
+    <div className={`${className}`}>
+      <Image
+        src="/napa-auth-logo.png"
+        alt="NAPA Logo"
+        width={dimensions[size]}
+        height={dimensions[size]}
+        className="object-contain"
+        priority
+      />
+    </div>
+  )
+}
