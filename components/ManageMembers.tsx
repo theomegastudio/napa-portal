@@ -99,7 +99,7 @@ export default function ManageMembers({ organizationName }: ManageMembersProps) 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="member@example.com"
-                className="h-10"
+                className="h-10 border-gray-300"
               />
             </div>
             <div className="flex items-center space-x-2">
@@ -113,7 +113,7 @@ export default function ManageMembers({ organizationName }: ManageMembersProps) 
               </Label>
             </div>
           </div>
-          <Button type="submit" disabled={isInviting} className="h-10 bg-yellow-500 hover:bg-yellow-600 text-black">
+          <Button type="submit" disabled={isInviting} variant="ghost" className="h-10">
             {isInviting ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (

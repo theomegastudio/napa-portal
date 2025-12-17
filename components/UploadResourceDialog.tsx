@@ -101,7 +101,7 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Enter resource title"
               required
-              className="h-10"
+              className="h-10 border-gray-300"
             />
           </div>
 
@@ -113,7 +113,7 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Provide details about this resource"
               rows={3}
-              className="resize-none"
+              className="resize-none border-gray-300"
             />
           </div>
 
@@ -122,7 +122,7 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
               Resource Type <span className="text-red-500">*</span>
             </Label>
             <Select value={resourceType} onValueChange={setResourceType} required>
-              <SelectTrigger className="h-10">
+              <SelectTrigger className="h-10 border-gray-300">
                 <SelectValue placeholder="Select type" />
               </SelectTrigger>
               <SelectContent>
@@ -141,7 +141,7 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
               type="file"
               multiple
               onChange={(e) => setSelectedFiles(Array.from(e.target.files || []))}
-              className="h-10 cursor-pointer"
+              className="h-10 cursor-pointer border-gray-300"
             />
             {selectedFiles.length > 0 && (
               <p className="text-xs text-muted-foreground">
@@ -158,12 +158,12 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
               value={externalLink}
               onChange={(e) => setExternalLink(e.target.value)}
               placeholder="https://example.com"
-              className="h-10"
+              className="h-10 border-gray-300"
             />
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} className="h-10">
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)} className="h-10">
               Cancel
             </Button>
             <Button type="submit" disabled={isUploading} className="h-10 bg-yellow-500 hover:bg-yellow-600 text-black">
