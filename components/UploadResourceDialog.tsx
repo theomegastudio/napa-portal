@@ -157,7 +157,7 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
               type="url"
               value={externalLink}
               onChange={(e) => setExternalLink(e.target.value)}
-              placeholder="https://example.com"
+              placeholder="https://napahq.org"
               className="h-10 border-gray-300"
             />
           </div>

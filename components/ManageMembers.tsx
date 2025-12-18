@@ -98,7 +98,7 @@ export default function ManageMembers({ organizationName }: ManageMembersProps) 
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="member@example.com"
+                placeholder="member@napahq.org"
                 className="h-10 border-gray-300"
               />
             </div>
@@ -136,7 +136,7 @@ export default function ManageMembers({ organizationName }: ManageMembersProps) 
               {members.map((member) => (
                 <div
                   key={member.id}
-                  className="flex items-center justify-between p-3 rounded-lg border bg-gray-50"
+                  className="flex items-center justify-between p-3 rounded-lg border"
                 >
                   <p className="text-sm font-medium">{member.email}</p>
                   {member.is_admin && (

@@ -5,7 +5,7 @@ interface NapaAuthLogoProps {
   className?: string
 }
 
-export default function NapaAuthLogo({ size = 'md', className = '' }: NapaAuthLogoProps) {
+export default function NapaAuthLogo({ size = 'lg', className = '' }: NapaAuthLogoProps) {
   const dimensions = {
     sm: 32,
     md: 48,
