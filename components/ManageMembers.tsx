@@ -109,11 +109,11 @@ export default function ManageMembers({ organizationName }: ManageMembersProps) 
                 onCheckedChange={(checked) => setIsAdmin(checked as boolean)}
               />
               <Label htmlFor="admin" className="text-sm cursor-pointer font-normal">
-                Make admin
+                Make Admin
               </Label>
             </div>
           </div>
-          <Button type="submit" disabled={isInviting} variant="ghost" className="h-10">
+          <Button type="submit" disabled={isInviting} variant="outline" className="h-10">
             {isInviting ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
