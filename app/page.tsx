@@ -15,7 +15,6 @@ import ResourceCard from "@/components/ResourceCard"
 import UploadResourceDialog from "@/components/UploadResourceDialog"
 import OrganizationSetup from "@/components/OrganizationSetup"
 import NapaPortalLogo from "@/components/NapaPortalLogo"
-import { ThemeToggle } from "@/components/ThemeToggle"
 import { useDebouncedCallback } from "use-debounce"
 import type { Resource, User } from "@/lib/types"
 
@@ -160,7 +159,6 @@ export default function App() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <ThemeToggle />
               {isAdmin && (
                 <Button variant="outline" onClick={() => router.push('/admin/users')}>
                   <Settings className="mr-2 h-4 w-4" />
