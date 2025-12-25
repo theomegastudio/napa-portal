@@ -116,12 +116,22 @@ export async function updateResource(params: {
 
 export async function deleteResource(resourceId: string) {
   const supabase = createClient()
-  
+
   // Soft delete
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('resources')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', resourceId)
-  
-  if (error) throw error
+    .select()
+
+  if (error) {
+    console.error('Delete error:', error)
+    throw new Error(`Failed to delete resource: ${error.message}`)
+  }
+
+  if (!data || data.length === 0) {
+    throw new Error('Resource not found or you do not have permission to delete it')
+  }
+
+  return data
 }
