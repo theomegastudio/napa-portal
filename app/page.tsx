@@ -10,11 +10,10 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
-import { Search, LogOut, Settings, FileText } from "lucide-react"
+import { Search, LogOut, Settings, FileText, Users } from "lucide-react"
 import ResourceCard from "@/components/ResourceCard"
 import UploadResourceDialog from "@/components/UploadResourceDialog"
 import OrganizationSetup from "@/components/OrganizationSetup"
-import ManageMembers from "@/components/ManageMembers"
 import NapaPortalLogo from "@/components/NapaPortalLogo"
 import { useDebouncedCallback } from "use-debounce"
 import type { Resource, User } from "@/lib/types"
@@ -207,7 +206,16 @@ export default function App() {
         userEmail={user.email}
         userOrganization={user.organization_name || ''}
       />
-      {user.is_admin && <ManageMembers organizationName={user.organization_name || ''} />}
+      {user.is_admin && (
+        <Button
+          variant="outline"
+          onClick={() => router.push('/admin/members')}
+          className="hover:bg-gray-200"
+        >
+          <Users className="mr-2 h-4 w-4" />
+          Manage Members
+        </Button>
+      )}
     </div>
   </div>
 </div>
@@ -239,7 +247,8 @@ export default function App() {
                 onUpdate={() => fetchResources(searchText, resourceType)}
                 canEdit={
                   resource.uploaded_by === user.email ||
-                  (user.is_admin && user.organization_name === 'National APIDA Panhellenic Association')
+                  (user.is_admin && user.organization_name === 'National APIDA Panhellenic Association') ||
+                  (user.is_admin && user.organization_name === resource.organization)
                 }
               />
             ))}
