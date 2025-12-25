@@ -7,10 +7,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Edit, Loader2 } from "lucide-react"
+import { Edit, Loader2, AlertCircle } from "lucide-react"
 import { uploadFile } from "@/lib/services/storage"
 import { updateResource } from "@/lib/services/resources"
 import { toast } from "sonner"
+import { validateFile, formatFileSize, MAX_FILE_SIZE } from "@/lib/utils/file-validation"
 import type { Resource } from "@/lib/types"
 
 interface EditResourceDialogProps {
@@ -26,6 +27,7 @@ export default function EditResourceDialog({ resource, onSuccess }: EditResource
   const [resourceType, setResourceType] = useState("")
   const [externalLink, setExternalLink] = useState("")
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [fileErrors, setFileErrors] = useState<string[]>([])
 
   useEffect(() => {
     if (open) {
@@ -34,14 +36,42 @@ export default function EditResourceDialog({ resource, onSuccess }: EditResource
       setResourceType(resource.resource_type || "")
       setExternalLink(resource.external_link || "")
       setSelectedFiles([])
+      setFileErrors([])
     }
   }, [open, resource])
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    const errors: string[] = []
+    const validFiles: File[] = []
+
+    files.forEach((file) => {
+      const validationError = validateFile(file)
+      if (validationError) {
+        errors.push(`${file.name}: ${validationError.message}`)
+      } else {
+        validFiles.push(file)
+      }
+    })
+
+    setFileErrors(errors)
+    setSelectedFiles(validFiles)
+
+    if (errors.length > 0) {
+      toast.error(`${errors.length} file(s) rejected due to validation errors`)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!title || !resourceType) {
       toast.error("Please fill in required fields")
+      return
+    }
+
+    if (fileErrors.length > 0) {
+      toast.error("Please fix file validation errors before submitting")
       return
     }
 
@@ -49,7 +79,7 @@ export default function EditResourceDialog({ resource, onSuccess }: EditResource
 
     try {
       const newUploadedFiles: { url: string; name: string }[] = []
-      
+
       for (const file of selectedFiles) {
         const result = await uploadFile(file)
         newUploadedFiles.push(result)
@@ -68,7 +98,8 @@ export default function EditResourceDialog({ resource, onSuccess }: EditResource
       setOpen(false)
       onSuccess()
     } catch (error) {
-      toast.error("Failed to update resource")
+      const errorMessage = error instanceof Error ? error.message : "Failed to update resource"
+      toast.error(errorMessage)
       console.error(error)
     } finally {
       setIsUpdating(false)
@@ -133,15 +164,30 @@ export default function EditResourceDialog({ resource, onSuccess }: EditResource
               id="edit-files"
               type="file"
               multiple
-              onChange={(e) => setSelectedFiles(Array.from(e.target.files || []))}
+              onChange={handleFileSelect}
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.gif"
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              Max {formatFileSize(MAX_FILE_SIZE)} per file. Allowed: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, images
+            </p>
             {selectedFiles.length > 0 && (
-              <p className="text-sm text-muted-foreground mt-1">
-                {selectedFiles.length} new file(s) selected
+              <p className="text-xs text-green-600 mt-1">
+                ✓ {selectedFiles.length} valid new file(s) selected
               </p>
             )}
+            {fileErrors.length > 0 && (
+              <div className="text-xs text-red-600 space-y-1 mt-1">
+                <div className="flex items-center gap-1 font-medium">
+                  <AlertCircle className="h-3 w-3" />
+                  <span>{fileErrors.length} file(s) rejected:</span>
+                </div>
+                {fileErrors.map((error, idx) => (
+                  <p key={idx} className="pl-4">• {error}</p>
+                ))}
+              </div>
+            )}
             {resource.files && resource.files.length > 0 && (
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 Keeping {resource.files.length} existing file(s)
               </p>
             )}

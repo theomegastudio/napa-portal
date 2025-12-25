@@ -127,8 +127,14 @@ napa-resource-hub/
 │   │   ├── storage.ts             # File operations
 │   │   └── members.ts             # Member invitations
 │   │
+│   ├── utils/                     # Utility functions
+│   │   └── file-validation.ts    # File security validation
+│   │
 │   ├── types.ts                   # TypeScript interfaces
-│   └── utils.ts                   # Utility functions
+│   └── utils.ts                   # General utilities
+│
+├── docs/                          # Documentation
+│   └── SECURITY.md                # Security implementation details
 │
 ├── public/                        # Static assets
 ├── middleware.ts                  # Session refresh middleware
@@ -322,13 +328,21 @@ export async function getResources(filters?: ResourceFilters)
 - Automatic filename generation (random + timestamp)
 - Public URL access
 - File deletion on resource delete
+- **Comprehensive security validation** (see [Security](#file-upload-security) section)
 
 **Implementation:**
 ```typescript
 // lib/services/storage.ts
-export async function uploadFile(file: File): Promise<string>
+export async function uploadFile(file: File): Promise<{ url: string; name: string }>
 export async function deleteFile(fileUrl: string)
 ```
+
+**Security Features:**
+- File type validation (PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, images only)
+- File size limits (10MB max)
+- MIME type verification
+- Filename sanitization
+- Executable file blocking
 
 ### 3. Member Management
 
@@ -366,6 +380,62 @@ const filteredResources = resources
     return matchesSearch && matchesType;
   });
 ```
+
+## File Upload Security
+
+The NAPA Resource Hub implements comprehensive file upload security to protect against malware and malicious files.
+
+### Security Implementation
+
+Located in `/lib/utils/file-validation.ts`:
+
+**Key Functions:**
+- `validateFile(file: File)` - Comprehensive validation
+- `validateFileSize(file: File)` - Check size limits (10MB max)
+- `validateFileExtension(filename: string)` - Check allowed types
+- `validateMimeType(file: File)` - Verify MIME matches extension
+- `sanitizeFilename(filename: string)` - Remove dangerous characters
+
+**Allowed File Types:**
+- **Documents**: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX
+- **Images**: PNG, JPG, JPEG, GIF
+
+**Blocked File Types:**
+All executable files are blocked including: .exe, .dmg, .bat, .sh, .cmd, .dll, .app, .pkg, .msi, and more.
+
+**Validation Flow:**
+```typescript
+1. Client selects file
+2. Client-side validation (immediate feedback)
+3. Server-side validation (security enforcement)
+4. Filename sanitization (remove malicious characters)
+5. Unique filename generation
+6. Upload to Supabase Storage
+```
+
+**Implementation Example:**
+```typescript
+// Upload dialog validation
+const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const files = Array.from(e.target.files || [])
+  const errors: string[] = []
+  const validFiles: File[] = []
+
+  files.forEach((file) => {
+    const validationError = validateFile(file)
+    if (validationError) {
+      errors.push(`${file.name}: ${validationError.message}`)
+    } else {
+      validFiles.push(file)
+    }
+  })
+
+  setFileErrors(errors)
+  setSelectedFiles(validFiles)
+}
+```
+
+For detailed security documentation, see [docs/SECURITY.md](./docs/SECURITY.md)
 
 ## Development Guide
 
@@ -528,12 +598,18 @@ deleteResource(id: string): Promise<void>
 ### Storage Service (`lib/services/storage.ts`)
 
 ```typescript
-// Upload file to Supabase Storage
-uploadFile(file: File): Promise<string>
+// Upload file to Supabase Storage with validation
+uploadFile(file: File): Promise<{ url: string; name: string }>
 
 // Delete file from storage
 deleteFile(fileUrl: string): Promise<void>
 ```
+
+**Security Notes:**
+- All files are validated before upload (type, size, MIME)
+- Filenames are sanitized to prevent path traversal
+- Only approved file types are allowed
+- See [File Upload Security](#file-upload-security) for details
 
 ### Organization Service (`lib/services/organizations.ts`)
 

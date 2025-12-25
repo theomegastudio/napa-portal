@@ -7,10 +7,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Upload, Loader2 } from "lucide-react"
+import { Upload, Loader2, AlertCircle } from "lucide-react"
 import { uploadFile } from "@/lib/services/storage"
 import { createResource } from "@/lib/services/resources"
 import { toast } from "sonner"
+import { validateFile, formatFileSize, MAX_FILE_SIZE } from "@/lib/utils/file-validation"
 
 interface UploadResourceDialogProps {
   onSuccess: () => void
@@ -26,12 +27,40 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
   const [resourceType, setResourceType] = useState("")
   const [externalLink, setExternalLink] = useState("")
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [fileErrors, setFileErrors] = useState<string[]>([])
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    const errors: string[] = []
+    const validFiles: File[] = []
+
+    files.forEach((file) => {
+      const validationError = validateFile(file)
+      if (validationError) {
+        errors.push(`${file.name}: ${validationError.message}`)
+      } else {
+        validFiles.push(file)
+      }
+    })
+
+    setFileErrors(errors)
+    setSelectedFiles(validFiles)
+
+    if (errors.length > 0) {
+      toast.error(`${errors.length} file(s) rejected due to validation errors`)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!title || !resourceType) {
       toast.error("Please fill in required fields")
+      return
+    }
+
+    if (fileErrors.length > 0) {
+      toast.error("Please fix file validation errors before submitting")
       return
     }
 
@@ -39,7 +68,7 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
 
     try {
       const uploadedFiles: { url: string; name: string }[] = []
-      
+
       for (const file of selectedFiles) {
         const result = await uploadFile(file)
         uploadedFiles.push(result)
@@ -60,7 +89,8 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
       resetForm()
       onSuccess()
     } catch (error) {
-      toast.error("Failed to add resource")
+      const errorMessage = error instanceof Error ? error.message : "Failed to add resource"
+      toast.error(errorMessage)
       console.error(error)
     } finally {
       setIsUploading(false)
@@ -73,6 +103,7 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
     setResourceType("")
     setExternalLink("")
     setSelectedFiles([])
+    setFileErrors([])
   }
 
   return (
@@ -140,13 +171,28 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
               id="files"
               type="file"
               multiple
-              onChange={(e) => setSelectedFiles(Array.from(e.target.files || []))}
+              onChange={handleFileSelect}
               className="h-10 cursor-pointer border-gray-300"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.gif"
             />
+            <p className="text-xs text-muted-foreground">
+              Max {formatFileSize(MAX_FILE_SIZE)} per file. Allowed: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, images
+            </p>
             {selectedFiles.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {selectedFiles.length} file(s) selected
+              <p className="text-xs text-green-600">
+                ✓ {selectedFiles.length} valid file(s) selected
               </p>
+            )}
+            {fileErrors.length > 0 && (
+              <div className="text-xs text-red-600 space-y-1">
+                <div className="flex items-center gap-1 font-medium">
+                  <AlertCircle className="h-3 w-3" />
+                  <span>{fileErrors.length} file(s) rejected:</span>
+                </div>
+                {fileErrors.map((error, idx) => (
+                  <p key={idx} className="pl-4">• {error}</p>
+                ))}
+              </div>
             )}
           </div>
 

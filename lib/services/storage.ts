@@ -1,16 +1,29 @@
 import { createClient } from '@/lib/supabase/client'
+import { validateFile, sanitizeFilename, getFileExtension } from '@/lib/utils/file-validation'
 
 export async function uploadFile(file: File): Promise<{ url: string; name: string }> {
   const supabase = createClient()
-  
-  // Generate unique filename
-  const fileExt = file.name.split('.').pop()
+
+  // Validate file (security check)
+  const validationError = validateFile(file)
+  if (validationError) {
+    throw new Error(validationError.message)
+  }
+
+  // Sanitize original filename
+  const sanitizedName = sanitizeFilename(file.name)
+
+  // Generate unique filename with sanitized extension
+  const fileExt = getFileExtension(file.name)
   const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`
   const filePath = `${fileName}`
 
   const { error: uploadError } = await supabase.storage
     .from('resource-files')
-    .upload(filePath, file)
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false
+    })
 
   if (uploadError) throw uploadError
 
@@ -21,7 +34,7 @@ export async function uploadFile(file: File): Promise<{ url: string; name: strin
 
   return {
     url: data.publicUrl,
-    name: file.name
+    name: sanitizedName
   }
 }
 

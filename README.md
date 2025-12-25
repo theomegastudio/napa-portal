@@ -11,6 +11,7 @@ A shared resource library platform for NAPA (National APIDA Panhellenic Associat
 - **User Management**: NAPA admins can manage all users across organizations
 - **Resource Types**: Support for Policies, Procedures, Documents, and Vendor information
 - **Search & Filter**: Find resources by keyword and type
+- **File Upload Security**: Comprehensive validation with malware protection (see [Security Documentation](./docs/SECURITY.md))
 
 ## Tech Stack
 
@@ -80,7 +81,10 @@ napa-resource-hub/
 ├── lib/                   # Utilities and services
 │   ├── services/         # API service layer
 │   ├── supabase/         # Supabase clients
+│   ├── utils/            # Utility functions (file validation, etc.)
 │   └── types.ts          # TypeScript type definitions
+├── docs/                  # Documentation
+│   └── SECURITY.md       # Security implementation details
 └── public/               # Static assets
 ```
 
@@ -102,6 +106,19 @@ napa-resource-hub/
    - Automatically assigned to "National APIDA Panhellenic Association"
    - Email domains: `@napahq.org`, `@napa-online.org`
    - Admin privileges for user management
+
+## Security
+
+The NAPA Resource Hub implements comprehensive file upload security measures:
+
+- **File Type Validation**: Only allows approved document types (PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX) and images (PNG, JPG, GIF)
+- **File Size Limits**: Maximum 10MB per file
+- **Executable Blocking**: Blocks all executable file types (.exe, .dmg, .sh, .bat, etc.)
+- **MIME Type Verification**: Prevents file type spoofing
+- **Filename Sanitization**: Removes malicious characters and path traversal attempts
+- **Dual Validation**: Both client-side (UX) and server-side (security) validation
+
+For detailed security documentation, see [docs/SECURITY.md](./docs/SECURITY.md)
 
 ## Deployment
 
