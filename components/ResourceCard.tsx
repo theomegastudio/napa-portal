@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { FileText, ExternalLink, Trash2, Download } from "lucide-react"
-import EditResourceDialog from "./EditResourceDialog"
+import EditResourceDialogEnhanced from "./EditResourceDialogEnhanced"
+import VersionHistoryDialog from "./VersionHistoryDialog"
 import type { Resource } from "@/lib/types"
 
 interface ResourceCardProps {
@@ -45,7 +46,7 @@ export default function ResourceCard({ resource, onDelete, onUpdate, canEdit }: 
           </div>
           {canEdit && (
             <div className="flex gap-1">
-              <EditResourceDialog resource={resource} onSuccess={onUpdate} />
+              <EditResourceDialogEnhanced resource={resource} onSuccess={onUpdate} />
               <Button
                 variant="ghost"
                 size="icon"
@@ -96,6 +97,13 @@ export default function ResourceCard({ resource, onDelete, onUpdate, canEdit }: 
             View External Link
           </a>
         )}
+
+        <div className="pt-2 border-t">
+          <VersionHistoryDialog
+            resourceId={resource.id}
+            resourceTitle={resource.title}
+          />
+        </div>
       </CardContent>
     </Card>
   )

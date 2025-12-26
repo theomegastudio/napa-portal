@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/client'
 import type { Resource } from '@/lib/types'
 import { createAuditLog } from './audit'
+import { createVersion } from './versions'
 
 export async function getResources(params?: {
   searchText?: string
@@ -103,6 +104,7 @@ export async function updateResource(params: {
   userId: string
   userEmail: string
   organization: string
+  changeNotes?: string
 }) {
   const supabase = createClient()
 
@@ -134,6 +136,21 @@ export async function updateResource(params: {
     if (filesError) throw filesError
   }
 
+  // Create version record
+  await createVersion({
+    resourceId: params.resourceId,
+    title: params.title,
+    description: params.description,
+    resourceType: params.resourceType,
+    externalLink: params.externalLink,
+    updatedBy: params.userEmail,
+    updatedByUserId: params.userId,
+    changeNotes: params.changeNotes,
+    metadata: {
+      filesAdded: params.files?.length || 0
+    }
+  })
+
   // Create audit log
   await createAuditLog({
     userId: params.userId,
@@ -144,9 +161,21 @@ export async function updateResource(params: {
     resourceTitle: params.title,
     resourceType: params.resourceType,
     metadata: {
-      newFilesAdded: params.files?.length || 0
+      newFilesAdded: params.files?.length || 0,
+      hasChangeNotes: !!params.changeNotes
     }
   })
+}
+
+export async function deleteResourceFile(fileId: string) {
+  const supabase = createClient()
+
+  const { error } = await supabase
+    .from('resource_files')
+    .delete()
+    .eq('id', fileId)
+
+  if (error) throw error
 }
 
 export async function deleteResource(
