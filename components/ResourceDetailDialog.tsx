@@ -76,7 +76,7 @@ export default function ResourceDetailDialog({ resource, children }: ResourceDet
             <Badge className={getTypeColor(resource.resource_type)}>
               {resource.resource_type}
             </Badge>
-            <div className="flex items-center gap-2 text-base text-muted-foreground">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <User className="h-4 w-4" />
               <span>{getOrgNickname(resource.organization)}</span>
             </div>
