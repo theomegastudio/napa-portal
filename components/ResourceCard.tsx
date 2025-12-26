@@ -59,15 +59,15 @@ export default function ResourceCard({ resource, onDelete, onUpdate, canEdit }: 
 
   return (
     <ResourceDetailDialog resource={resource}>
-      <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-        <CardHeader>
+      <Card className="hover:shadow-lg transition-shadow cursor-pointer flex flex-col">
+        <CardHeader className="flex-1">
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
                 {resource.title}
               </CardTitle>
-              <CardDescription className="mt-2 line-clamp-2">
+              <CardDescription className="mt-2 line-clamp-2 min-h-[2.5rem]">
                 {resource.description || 'No description provided'}
               </CardDescription>
             </div>
@@ -89,7 +89,7 @@ export default function ResourceCard({ resource, onDelete, onUpdate, canEdit }: 
             )}
           </div>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-3 mt-auto">
           <div className="space-y-1">
             <Badge className={getTypeColor(resource.resource_type)}>
               {resource.resource_type}
@@ -99,18 +99,20 @@ export default function ResourceCard({ resource, onDelete, onUpdate, canEdit }: 
             </div>
           </div>
 
-          {resource.files && resource.files.length > 0 && (
-            <div className="text-sm text-muted-foreground">
-              {resource.files.length} file{resource.files.length !== 1 ? 's' : ''}
-            </div>
-          )}
+          <div className="min-h-[1.25rem]">
+            {resource.files && resource.files.length > 0 && (
+              <div className="text-sm text-muted-foreground">
+                {resource.files.length} file{resource.files.length !== 1 ? 's' : ''}
+              </div>
+            )}
 
-          {resource.external_link && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <ExternalLink className="h-3 w-3" />
-              <span>Has external link</span>
-            </div>
-          )}
+            {resource.external_link && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <ExternalLink className="h-3 w-3" />
+                <span>Has external link</span>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
     </ResourceDetailDialog>
