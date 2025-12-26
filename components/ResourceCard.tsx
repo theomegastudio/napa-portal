@@ -63,8 +63,7 @@ export default function ResourceCard({ resource, onDelete, onUpdate, canEdit }: 
         <CardHeader className="flex-1">
           <div className="flex items-start justify-between">
             <div className="flex-1">
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
+              <CardTitle>
                 {resource.title}
               </CardTitle>
               <CardDescription className="mt-2 line-clamp-2 min-h-[2.5rem]">
@@ -101,8 +100,9 @@ export default function ResourceCard({ resource, onDelete, onUpdate, canEdit }: 
 
           <div className="min-h-[1.25rem]">
             {resource.files && resource.files.length > 0 && (
-              <div className="text-sm text-muted-foreground">
-                {resource.files.length} file{resource.files.length !== 1 ? 's' : ''}
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <FileText className="h-3 w-3" />
+                <span>{resource.files.length} file{resource.files.length !== 1 ? 's' : ''}</span>
               </div>
             )}
 
