@@ -65,9 +65,9 @@ export default function ResourceDetailDialog({ resource, children }: ResourceDet
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl">{resource.title}</DialogTitle>
-          <DialogDescription className="mt-2 line-clamp-3">
+          <div className="mt-2 text-sm text-muted-foreground line-clamp-3">
             {resource.description || 'No description provided'}
-          </DialogDescription>
+          </div>
         </DialogHeader>
 
         <div className="space-y-4 mt-4">
@@ -76,12 +76,12 @@ export default function ResourceDetailDialog({ resource, children }: ResourceDet
             <Badge className={getTypeColor(resource.resource_type)}>
               {resource.resource_type}
             </Badge>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 text-base text-muted-foreground">
               <User className="h-4 w-4" />
               <span>{getOrgNickname(resource.organization)}</span>
             </div>
             {resource.created_at && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Calendar className="h-4 w-4" />
                 <span>{new Date(resource.created_at).toLocaleDateString()}</span>
               </div>
