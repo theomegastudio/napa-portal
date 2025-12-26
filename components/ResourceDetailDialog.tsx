@@ -34,18 +34,25 @@ export default function ResourceDetailDialog({ resource, children }: ResourceDet
 
   const getOrgNickname = (orgName: string) => {
     const nicknames: Record<string, string> = {
-      'National APIDA Panhellenic Association': 'ΝΑΑΠΑ', // Nu Alpha Alpha Pi Alpha
-      'alpha Kappa Delta Phi': 'αΚΔΦ',
-      'Kappa Phi Lambda': 'ΚΦΛ',
-      'Sigma Psi Zeta': 'ΣΨΖ',
-      'delta phi lambda': 'δφλ',
-      'Lambda Phi Epsilon': 'ΛΦΕ',
-      'Pi Delta Psi': 'ΠΔΨ',
-      'Sigma Beta Rho': 'ΣΒΡ',
-      'Lambda Theta Alpha': 'ΛΘΑ',
-      'alpha Phi Gamma': 'αΦΓ',
-      'Theta Nu Xi': 'ΘΝΞ',
-      // Add more as needed
+      'National APIDA Panhellenic Association': 'NAPA',
+      'alpha Kappa Delta Phi International Sorority, Inc.': 'αΚΔΦ',
+      'Alpha Phi Gamma National Sorority, Inc.': 'AΦΓ',
+      'Alpha Sigma Rho National Sorority, Inc.': 'AΣP',
+      'Chi Sigma Tau National Fraternity, Inc.': 'XΣT',
+      'Delta Epsilon Psi National Fraternity, Inc.': 'ΔEΨ',
+      'Delta Kappa Delta National Sorority, Inc.': 'ΔKΔ',
+      'Delta Phi Lambda National Sorority, Inc.': 'ΔΦΛ',
+      'Delta Phi Omega National Sorority, Inc.': 'ΔΦΩ',
+      'Delta Sigma Iota National Fraternity, Inc.': 'ΔΣI',
+      'Iota Nu Delta National Fraternity, Inc.': 'INΔ',
+      'Kappa Phi Gamma National Sorority, Inc.': 'KΦΓ',
+      'Kappa Phi Lambda National Sorority, Inc.': 'KΦΛ',
+      'Kappa Pi Beta National Fraternity, Inc.': 'KΠB',
+      'Lambda Phi Epsilon International Fraternity, Inc.': 'ΛΦE',
+      'Pi Delta Psi National Fraternity, Inc.': 'ΠΔΨ',
+      'Sigma Beta Rho National Fraternity, Inc.': 'ΣBP',
+      'Sigma Psi Zeta National Sorority, Inc.': 'ΣΨZ',
+      'Sigma Sigma Rho National Sorority, Inc.': 'ΣΣP',
     }
     return nicknames[orgName] || orgName
   }
