@@ -42,9 +42,8 @@ export default function VersionHistoryDialog({ resourceId, resourceTitle }: Vers
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="gap-2">
+        <Button variant="ghost" size="icon" className="hover:bg-gray-200">
           <Clock className="h-4 w-4" />
-          History
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">

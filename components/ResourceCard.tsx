@@ -18,18 +18,27 @@ interface ResourceCardProps {
 export default function ResourceCard({ resource, onDelete, onUpdate, canEdit }: ResourceCardProps) {
     const getTypeColor = (type?: string) => {
         switch (type) {
-          case 'Policy': 
+          case 'Policy':
             return 'bg-blue-600 text-white hover:bg-blue-700'
-          case 'Procedure': 
+          case 'Procedure':
             return 'bg-emerald-600 text-white hover:bg-emerald-700'
-          case 'Document': 
+          case 'Document':
             return 'bg-violet-600 text-white hover:bg-violet-700'
-          case 'Vendor': 
+          case 'Vendor':
             return 'bg-amber-600 text-white hover:bg-amber-700'
-          default: 
+          default:
             return 'bg-gray-600 text-white hover:bg-gray-700'
         }
       }
+
+    // Organization nickname mapping
+    const getOrgNickname = (orgName: string) => {
+      const nicknames: Record<string, string> = {
+        'National APIDA Panhellenic Association': 'NAPA',
+        // Add more mappings as needed
+      }
+      return nicknames[orgName] || orgName
+    }
 
   return (
     <Card className="hover:shadow-lg transition-shadow">
@@ -44,29 +53,35 @@ export default function ResourceCard({ resource, onDelete, onUpdate, canEdit }: 
               {resource.description || 'No description provided'}
             </CardDescription>
           </div>
-          {canEdit && (
-            <div className="flex gap-1">
-              <EditResourceDialogEnhanced resource={resource} onSuccess={onUpdate} />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => onDelete(resource.id)}
-                className="text-red-600 hover:bg-red-100 hover:text-red-700"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
+          <div className="flex gap-1">
+            {canEdit && (
+              <>
+                <EditResourceDialogEnhanced resource={resource} onSuccess={onUpdate} />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onDelete(resource.id)}
+                  className="text-red-600 hover:bg-red-100 hover:text-red-700"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </>
+            )}
+            <VersionHistoryDialog
+              resourceId={resource.id}
+              resourceTitle={resource.title}
+            />
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="space-y-1">
           <Badge className={getTypeColor(resource.resource_type)}>
             {resource.resource_type}
           </Badge>
-          <span className="text-sm text-muted-foreground">
-            by {resource.organization}
-          </span>
+          <div className="text-xs text-muted-foreground">
+            by {getOrgNickname(resource.organization)}
+          </div>
         </div>
         
         {resource.files && resource.files.length > 0 && (
@@ -97,13 +112,6 @@ export default function ResourceCard({ resource, onDelete, onUpdate, canEdit }: 
             View External Link
           </a>
         )}
-
-        <div className="pt-2 border-t">
-          <VersionHistoryDialog
-            resourceId={resource.id}
-            resourceTitle={resource.title}
-          />
-        </div>
       </CardContent>
     </Card>
   )
