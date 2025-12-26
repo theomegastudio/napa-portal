@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/client'
 import type { Resource } from '@/lib/types'
+import { createAuditLog } from './audit'
 
 export async function getResources(params?: {
   searchText?: string
@@ -38,6 +39,7 @@ export async function createResource(params: {
   files?: { url: string; name?: string }[]
   organization: string
   uploadedBy: string
+  userId: string
 }) {
   const supabase = createClient()
 
@@ -72,6 +74,22 @@ export async function createResource(params: {
     if (filesError) throw filesError
   }
 
+  // Create audit log
+  await createAuditLog({
+    userId: params.userId,
+    userEmail: params.uploadedBy,
+    organization: params.organization,
+    action: 'created',
+    resourceId: resource.id,
+    resourceTitle: params.title,
+    resourceType: params.resourceType,
+    metadata: {
+      hasFiles: (params.files?.length || 0) > 0,
+      fileCount: params.files?.length || 0,
+      hasExternalLink: !!params.externalLink
+    }
+  })
+
   return resource
 }
 
@@ -82,6 +100,9 @@ export async function updateResource(params: {
   resourceType: string
   externalLink?: string
   files?: { url: string; name?: string }[]
+  userId: string
+  userEmail: string
+  organization: string
 }) {
   const supabase = createClient()
 
@@ -112,9 +133,32 @@ export async function updateResource(params: {
 
     if (filesError) throw filesError
   }
+
+  // Create audit log
+  await createAuditLog({
+    userId: params.userId,
+    userEmail: params.userEmail,
+    organization: params.organization,
+    action: 'updated',
+    resourceId: params.resourceId,
+    resourceTitle: params.title,
+    resourceType: params.resourceType,
+    metadata: {
+      newFilesAdded: params.files?.length || 0
+    }
+  })
 }
 
-export async function deleteResource(resourceId: string) {
+export async function deleteResource(
+  resourceId: string,
+  params: {
+    userId: string
+    userEmail: string
+    organization: string
+    resourceTitle: string
+    resourceType: string
+  }
+) {
   const supabase = createClient()
 
   // Soft delete (no .select() to avoid resource_files policy issues)
@@ -127,4 +171,15 @@ export async function deleteResource(resourceId: string) {
     console.error('Delete error:', JSON.stringify(error, null, 2))
     throw new Error(`Failed to delete resource: ${error.message || error.hint || JSON.stringify(error)}`)
   }
+
+  // Create audit log
+  await createAuditLog({
+    userId: params.userId,
+    userEmail: params.userEmail,
+    organization: params.organization,
+    action: 'deleted',
+    resourceId: resourceId,
+    resourceTitle: params.resourceTitle,
+    resourceType: params.resourceType
+  })
 }

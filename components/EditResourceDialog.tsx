@@ -13,6 +13,7 @@ import { updateResource } from "@/lib/services/resources"
 import { toast } from "sonner"
 import { validateFile, formatFileSize, MAX_FILE_SIZE } from "@/lib/utils/file-validation"
 import type { Resource } from "@/lib/types"
+import { createClient } from "@/lib/supabase/client"
 
 interface EditResourceDialogProps {
   resource: Resource
@@ -85,13 +86,29 @@ export default function EditResourceDialog({ resource, onSuccess }: EditResource
         newUploadedFiles.push(result)
       }
 
+      // Get current user
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('User not authenticated')
+
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('email, organization_name')
+        .eq('id', user.id)
+        .single()
+
+      if (!userProfile) throw new Error('User profile not found')
+
       await updateResource({
         resourceId: resource.id,
         title,
         description,
         resourceType,
         files: newUploadedFiles.length > 0 ? newUploadedFiles : undefined,
-        externalLink: externalLink || undefined
+        externalLink: externalLink || undefined,
+        userId: user.id,
+        userEmail: userProfile.email,
+        organization: userProfile.organization_name || resource.organization
       })
 
       toast.success("Resource updated successfully!")

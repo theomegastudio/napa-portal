@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
-import { Search, LogOut, Settings, FileText, Users } from "lucide-react"
+import { Search, LogOut, Settings, FileText, Users, ScrollText } from "lucide-react"
 import ResourceCard from "@/components/ResourceCard"
 import UploadResourceDialog from "@/components/UploadResourceDialog"
 import OrganizationSetup from "@/components/OrganizationSetup"
@@ -99,11 +99,21 @@ export default function App() {
     }
   }, [searchText, resourceType, user, needsOrgSetup])
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, resource: Resource) => {
     if (!confirm("Are you sure you want to delete this resource?")) return
 
     try {
-      await deleteResource(id)
+      if (!authUser || !user) {
+        throw new Error('User not authenticated')
+      }
+
+      await deleteResource(id, {
+        userId: authUser.id,
+        userEmail: user.email,
+        organization: user.organization_name || '',
+        resourceTitle: resource.title,
+        resourceType: resource.resource_type || ''
+      })
       toast.success("Resource deleted successfully")
       fetchResources(searchText, resourceType)
     } catch (error) {
@@ -160,10 +170,16 @@ export default function App() {
             </div>
             <div className="flex items-center gap-2">
               {isAdmin && (
-                <Button variant="outline" onClick={() => router.push('/admin/users')}>
-                  <Settings className="mr-2 h-4 w-4" />
-                  Manage Users
-                </Button>
+                <>
+                  <Button variant="outline" onClick={() => router.push('/admin/audit')}>
+                    <ScrollText className="mr-2 h-4 w-4" />
+                    Audit Logs
+                  </Button>
+                  <Button variant="outline" onClick={() => router.push('/admin/users')}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    Manage Users
+                  </Button>
+                </>
               )}
               <Button variant="outline" onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
@@ -243,7 +259,7 @@ export default function App() {
               <ResourceCard
                 key={resource.id}
                 resource={resource}
-                onDelete={handleDelete}
+                onDelete={(id) => handleDelete(id, resource)}
                 onUpdate={() => fetchResources(searchText, resourceType)}
                 canEdit={
                   resource.uploaded_by === user.email ||

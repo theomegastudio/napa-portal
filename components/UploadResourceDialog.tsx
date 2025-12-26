@@ -12,6 +12,7 @@ import { uploadFile } from "@/lib/services/storage"
 import { createResource } from "@/lib/services/resources"
 import { toast } from "sonner"
 import { validateFile, formatFileSize, MAX_FILE_SIZE } from "@/lib/utils/file-validation"
+import { createClient } from "@/lib/supabase/client"
 
 interface UploadResourceDialogProps {
   onSuccess: () => void
@@ -74,6 +75,11 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
         uploadedFiles.push(result)
       }
 
+      // Get current user ID
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('User not authenticated')
+
       await createResource({
         title,
         description,
@@ -81,7 +87,8 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
         files: uploadedFiles.length > 0 ? uploadedFiles : undefined,
         externalLink: externalLink || undefined,
         organization: userOrganization,
-        uploadedBy: userEmail
+        uploadedBy: userEmail,
+        userId: user.id
       })
 
       toast.success("Resource added successfully!")
