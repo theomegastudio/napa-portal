@@ -94,19 +94,19 @@ export default function ResourceCard({ resource, onDelete, onUpdate, canEdit }: 
             <Badge className={getTypeColor(resource.resource_type)}>
               {resource.resource_type}
             </Badge>
-            <div className="text-xs text-muted-foreground">
-              by {getOrgNickname(resource.organization)}
+            <div className="text-sm text-muted-foreground">
+              Shared by {getOrgNickname(resource.organization)}
             </div>
           </div>
 
           {resource.files && resource.files.length > 0 && (
-            <div className="text-xs text-muted-foreground">
+            <div className="text-sm text-muted-foreground">
               {resource.files.length} file{resource.files.length !== 1 ? 's' : ''}
             </div>
           )}
 
           {resource.external_link && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <ExternalLink className="h-3 w-3" />
               <span>Has external link</span>
             </div>

@@ -151,8 +151,12 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Provide details about this resource"
               rows={3}
+              maxLength={500}
               className="resize-none border-gray-300"
             />
+            <p className="text-xs text-muted-foreground">
+              {description.length}/500 characters
+            </p>
           </div>
 
           <div className="space-y-2">

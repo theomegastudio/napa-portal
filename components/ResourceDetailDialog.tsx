@@ -65,7 +65,7 @@ export default function ResourceDetailDialog({ resource, children }: ResourceDet
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl">{resource.title}</DialogTitle>
-          <div className="mt-2 text-sm text-muted-foreground line-clamp-3">
+          <div className="mt-2 text-sm text-muted-foreground">
             {resource.description || 'No description provided'}
           </div>
         </DialogHeader>
@@ -123,12 +123,10 @@ export default function ResourceDetailDialog({ resource, children }: ResourceDet
                   href={resource.external_link}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 transition-colors"
+                  className="flex items-center gap-2 p-3 rounded-lg border hover:bg-gray-50 transition-colors"
                 >
-                  <div className="flex items-center gap-3">
-                    <ExternalLink className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium truncate">{resource.external_link}</span>
-                  </div>
+                  <ExternalLink className="h-4 w-4 text-primary flex-shrink-0" />
+                  <span className="text-sm font-medium truncate">{resource.external_link}</span>
                 </a>
               </CardContent>
             </Card>

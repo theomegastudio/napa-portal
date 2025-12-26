@@ -234,7 +234,11 @@ export default function EditResourceDialogEnhanced({ resource, onSuccess }: Edit
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Provide details about this resource"
               rows={3}
+              maxLength={500}
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              {description.length}/500 characters
+            </p>
           </div>
 
           <div>
