@@ -23,7 +23,7 @@ interface EditResourceDialogProps {
 
 interface FileConflict {
   newFile: File
-  existingFile: { id: string; file_name: string; file_url: string }
+  existingFile: { id: string; file_name: string | null; file_url: string }
 }
 
 export default function EditResourceDialogEnhanced({ resource, onSuccess }: EditResourceDialogProps) {
@@ -68,10 +68,10 @@ export default function EditResourceDialogEnhanced({ resource, onSuccess }: Edit
       } else {
         // Check for name conflicts with existing files
         const existingFile = resource.files?.find(f =>
-          f.file_name?.toLowerCase() === file.name.toLowerCase()
+          f.file_name && f.file_name.toLowerCase() === file.name.toLowerCase()
         )
 
-        if (existingFile) {
+        if (existingFile && existingFile.file_name) {
           newConflicts.push({ newFile: file, existingFile })
         }
         validFiles.push(file)
