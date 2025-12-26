@@ -64,18 +64,10 @@ export default function ResourceDetailDialog({ resource, children }: ResourceDet
       </DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <DialogTitle className="text-2xl">{resource.title}</DialogTitle>
-              <DialogDescription className="mt-2">
-                {resource.description || 'No description provided'}
-              </DialogDescription>
-            </div>
-            <VersionHistoryDialog
-              resourceId={resource.id}
-              resourceTitle={resource.title}
-            />
-          </div>
+          <DialogTitle className="text-2xl">{resource.title}</DialogTitle>
+          <DialogDescription className="mt-2 line-clamp-3">
+            {resource.description || 'No description provided'}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 mt-4">
@@ -84,12 +76,12 @@ export default function ResourceDetailDialog({ resource, children }: ResourceDet
             <Badge className={getTypeColor(resource.resource_type)}>
               {resource.resource_type}
             </Badge>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <User className="h-4 w-4" />
               <span>{getOrgNickname(resource.organization)}</span>
             </div>
             {resource.created_at && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Calendar className="h-4 w-4" />
                 <span>{new Date(resource.created_at).toLocaleDateString()}</span>
               </div>
@@ -144,8 +136,12 @@ export default function ResourceDetailDialog({ resource, children }: ResourceDet
 
           {/* Additional Info */}
           {resource.uploaded_by && (
-            <div className="text-xs text-muted-foreground border-t pt-3">
-              Uploaded by {resource.uploaded_by}
+            <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-3">
+              <span>Uploaded by {resource.uploaded_by}</span>
+              <VersionHistoryDialog
+                resourceId={resource.id}
+                resourceTitle={resource.title}
+              />
             </div>
           )}
         </div>
