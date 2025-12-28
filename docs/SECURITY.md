@@ -26,13 +26,21 @@ Executable files and scripts are strictly blocked, including:
 - Prevents storage abuse and DoS attacks
 - Clear error messages when limit exceeded
 
-#### 3. MIME Type Validation
+#### 3. Magic Byte Validation (Server-Side)
 
-- Files are validated to ensure the MIME type matches the file extension
-- Prevents file type spoofing (e.g., renaming `malware.exe` to `document.pdf`)
-- Both client-side and server-side validation
+- **Server-side magic byte detection**: Files are validated using their actual binary content, not just extension or MIME type
+- **Cannot be spoofed**: Reading the first bytes of a file to determine its true type (e.g., PDF files start with `%PDF`)
+- **Blocks renamed executables**: A `.dmg` file renamed to `.pdf` will be detected and rejected
+- **Uses `file-type` library**: Industry-standard magic byte detection
+- This is the same technique used by Google Drive, Dropbox, and other major platforms
 
-#### 4. Filename Sanitization
+#### 4. MIME Type Validation (Client-Side)
+
+- Client-side validation provides immediate user feedback
+- Checks if browser-reported MIME type matches file extension
+- Fast validation before upload to server
+
+#### 5. Filename Sanitization
 
 All filenames are sanitized to prevent:
 - **Path traversal attacks**: Removes `../`, `..\\` sequences
@@ -41,11 +49,12 @@ All filenames are sanitized to prevent:
 - **Special characters**: Removes `<>:"|?*` characters
 - **Length limits**: Filenames truncated to 255 characters
 
-#### 5. Server-Side Validation
+#### 6. Multi-Layer Validation
 
 All validation occurs on both client and server:
-- Client-side: Immediate user feedback
-- Server-side: Security enforcement (cannot be bypassed)
+- **Client-side**: Immediate user feedback, basic extension and MIME checks
+- **Server-side**: Security enforcement using magic byte detection (cannot be bypassed)
+- **API Route**: `/api/upload` handles all server-side validation before storage
 
 ### Implementation Details
 
@@ -61,20 +70,32 @@ If invalid → Show error, reject file
     ↓
 User submits form
     ↓
-Server validates again: extension, MIME type, size, filename
+Upload to /api/upload endpoint
+    ↓
+Server reads file buffer and validates:
+  - File size
+  - Extension whitelist
+  - Magic bytes (actual file type)
+  - Blocked executable signatures
+    ↓
+If validation fails → Return error to client
     ↓
 Sanitize filename
     ↓
-Generate unique filename with random prefix
+Generate unique filename with timestamp
     ↓
-Upload to Supabase Storage
+Upload to Supabase Storage (resource-files bucket)
+    ↓
+Return public URL to client
 ```
 
 #### Code Location
 
-- **Validation utilities**: `/lib/utils/file-validation.ts`
+- **Client-side validation**: `/lib/utils/file-validation.ts`
+- **Server-side validation**: `/lib/utils/server-file-validation.ts`
+- **Upload API route**: `/app/api/upload/route.ts`
 - **Storage service**: `/lib/services/storage.ts`
-- **Upload dialog**: `/components/UploadResourceDialog.tsx`
+- **Upload components**: `/components/UploadResourceDialog.tsx`, `/components/EditResourceDialogEnhanced.tsx`
 
 ### User Experience
 
@@ -94,7 +115,8 @@ Upload to Supabase Storage
 "File size must be less than 10MB. Your file is 15.2MB."
 "Executable files (.exe) are not allowed for security reasons."
 "File type .zip is not supported. Allowed types: PDF, DOC, DOCX..."
-"File appears to be misnamed or corrupted. Expected application/pdf, got application/x-msdownload."
+"File appears to be a application/x-mach-binary file, not a .pdf file. Please upload the file with its correct extension."
+"This file type (application/x-mach-binary) is blocked for security reasons."
 ```
 
 ### Future Enhancements
@@ -154,9 +176,10 @@ Upload to Supabase Storage
    - Try uploading `.exe`, `.sh`, `.bat` files
    - Should show executable error
 
-4. **Wrong MIME Type** ✓
-   - Rename `file.exe` to `file.pdf`
-   - Should detect MIME mismatch
+4. **Wrong File Type (Magic Bytes)** ✓
+   - Rename `file.dmg` to `file.pdf`
+   - Server detects actual file type using magic bytes
+   - Should reject with "File appears to be a application/x-mach-binary file, not a .pdf file"
 
 5. **Special Characters in Filename** ✓
    - Upload file with `<>:"|?*` in name

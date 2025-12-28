@@ -1,10 +1,8 @@
 import { createClient } from '@/lib/supabase/client'
-import { validateFile, sanitizeFilename, getFileExtension } from '@/lib/utils/file-validation'
+import { validateFile, sanitizeFilename } from '@/lib/utils/file-validation'
 
 export async function uploadFile(file: File, customFileName?: string): Promise<{ url: string; name: string }> {
-  const supabase = createClient()
-
-  // Validate file (security check)
+  // Client-side validation for immediate feedback
   const validationError = validateFile(file)
   if (validationError) {
     throw new Error(validationError.message)
@@ -13,27 +11,27 @@ export async function uploadFile(file: File, customFileName?: string): Promise<{
   // Sanitize filename
   const sanitizedName = customFileName ? sanitizeFilename(customFileName) : sanitizeFilename(file.name)
 
-  // Generate unique filename with sanitized extension
-  const fileExt = getFileExtension(customFileName || file.name)
-  const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`
-  const filePath = `${fileName}`
+  // Upload via API route for server-side validation
+  const formData = new FormData()
+  formData.append('file', file)
+  if (customFileName) {
+    formData.append('customFilename', sanitizedName)
+  }
 
-  const { error: uploadError } = await supabase.storage
-    .from('resource-files')
-    .upload(filePath, file, {
-      cacheControl: '3600',
-      upsert: false
-    })
+  const response = await fetch('/api/upload', {
+    method: 'POST',
+    body: formData,
+  })
 
-  if (uploadError) throw uploadError
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to upload file')
+  }
 
-  // Get public URL
-  const { data } = supabase.storage
-    .from('resource-files')
-    .getPublicUrl(filePath)
+  const data = await response.json()
 
   return {
-    url: data.publicUrl,
+    url: data.url,
     name: sanitizedName
   }
 }
