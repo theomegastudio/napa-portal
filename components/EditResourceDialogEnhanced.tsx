@@ -144,20 +144,30 @@ export default function EditResourceDialogEnhanced({ resource, onSuccess }: Edit
 
       // Upload new files
       const newUploadedFiles: { url: string; name: string }[] = []
-      for (const file of selectedFiles) {
-        // If keeping both, rename the new file
-        const resolution = conflictResolutions.get(file.name)
-        let fileName = file.name
-        if (resolution === 'keep-both') {
-          const timestamp = new Date().getTime()
-          const nameParts = file.name.split('.')
-          const ext = nameParts.pop()
-          const baseName = nameParts.join('.')
-          fileName = `${baseName}-${timestamp}.${ext}`
-        }
+      setFileErrors([]) // Clear any previous errors
 
-        const result = await uploadFile(file, fileName)
-        newUploadedFiles.push(result)
+      for (const file of selectedFiles) {
+        try {
+          // If keeping both, rename the new file
+          const resolution = conflictResolutions.get(file.name)
+          let fileName = file.name
+          if (resolution === 'keep-both') {
+            const timestamp = new Date().getTime()
+            const nameParts = file.name.split('.')
+            const ext = nameParts.pop()
+            const baseName = nameParts.join('.')
+            fileName = `${baseName}-${timestamp}.${ext}`
+          }
+
+          const result = await uploadFile(file, fileName)
+          newUploadedFiles.push(result)
+        } catch (uploadError) {
+          // Catch server-side validation errors
+          const errorMessage = uploadError instanceof Error ? uploadError.message : "Upload failed"
+          setFileErrors(prev => [...prev, `${file.name}: ${errorMessage}`])
+          setIsUpdating(false)
+          return // Stop upload process
+        }
       }
 
       // Get current user

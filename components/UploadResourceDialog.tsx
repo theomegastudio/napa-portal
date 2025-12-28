@@ -66,13 +66,22 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
     }
 
     setIsUploading(true)
+    setFileErrors([]) // Clear any previous errors
 
     try {
       const uploadedFiles: { url: string; name: string }[] = []
 
       for (const file of selectedFiles) {
-        const result = await uploadFile(file)
-        uploadedFiles.push(result)
+        try {
+          const result = await uploadFile(file)
+          uploadedFiles.push(result)
+        } catch (uploadError) {
+          // Catch server-side validation errors
+          const errorMessage = uploadError instanceof Error ? uploadError.message : "Upload failed"
+          setFileErrors(prev => [...prev, `${file.name}: ${errorMessage}`])
+          setIsUploading(false)
+          return // Stop upload process
+        }
       }
 
       // Get current user ID
