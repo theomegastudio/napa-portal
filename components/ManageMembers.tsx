@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Users, UserPlus, Loader2, Shield } from "lucide-react"
-import { inviteUser, getOrgMembers } from "@/lib/services/members"
 import { toast } from "sonner"
 import type { Member } from "@/lib/types"
 
@@ -33,7 +32,11 @@ export default function ManageMembers({ organizationName }: ManageMembersProps) 
   const fetchMembers = async () => {
     setIsLoading(true)
     try {
-      const data = await getOrgMembers(organizationName)
+      const response = await fetch(`/api/v2/members?organization=${encodeURIComponent(organizationName)}`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch members')
+      }
+      const data = await response.json()
       setMembers(data)
     } catch (error) {
       toast.error("Failed to load members")
@@ -45,7 +48,7 @@ export default function ManageMembers({ organizationName }: ManageMembersProps) 
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!email) {
       toast.error("Please enter an email address")
       return
@@ -60,13 +63,25 @@ export default function ManageMembers({ organizationName }: ManageMembersProps) 
 
     setIsInviting(true)
     try {
-      await inviteUser(email, organizationName, isAdmin)
+      const response = await fetch('/api/v2/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          organizationName,
+          isAdmin
+        })
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to invite member')
+      }
       toast.success("Invitation sent! They'll receive a magic link via email.")
       setEmail("")
       setIsAdmin(false)
       fetchMembers()
     } catch (error) {
-      toast.error("Failed to invite member")
+      toast.error(error instanceof Error ? error.message : "Failed to invite member")
       console.error(error)
     } finally {
       setIsInviting(false)

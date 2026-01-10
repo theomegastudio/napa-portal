@@ -8,12 +8,10 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Edit, Loader2, AlertCircle } from "lucide-react"
-import { uploadFile } from "@/lib/services/storage"
-import { updateResource } from "@/lib/services/resources"
+import { uploadFile } from "@/lib/services-drizzle/storage.client"
 import { toast } from "sonner"
 import { validateFile, formatFileSize, MAX_FILE_SIZE } from "@/lib/utils/file-validation"
 import type { Resource } from "@/lib/types"
-import { createClient } from "@/lib/supabase/client"
 
 interface EditResourceDialogProps {
   resource: Resource
@@ -86,30 +84,23 @@ export default function EditResourceDialog({ resource, onSuccess }: EditResource
         newUploadedFiles.push(result)
       }
 
-      // Get current user
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('User not authenticated')
-
-      const { data: userProfile } = await supabase
-        .from('users')
-        .select('email, organization_name')
-        .eq('id', user.id)
-        .single()
-
-      if (!userProfile) throw new Error('User profile not found')
-
-      await updateResource({
-        resourceId: resource.id,
-        title,
-        description,
-        resourceType,
-        files: newUploadedFiles.length > 0 ? newUploadedFiles : undefined,
-        externalLink: externalLink || undefined,
-        userId: user.id,
-        userEmail: userProfile.email,
-        organization: userProfile.organization_name || resource.organization
+      // Update resource via API
+      const response = await fetch(`/api/v2/resources/${resource.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          description,
+          resourceType,
+          files: newUploadedFiles.length > 0 ? newUploadedFiles : undefined,
+          externalLink: externalLink || undefined,
+        })
       })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to update resource')
+      }
 
       toast.success("Resource updated successfully!")
       setOpen(false)

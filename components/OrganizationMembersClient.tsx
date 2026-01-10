@@ -6,10 +6,24 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Loader2, SquarePen, Trash2, Search, UserPlus, Shield } from 'lucide-react'
+import { Loader2, SquarePen, Trash2, Search, UserPlus, Shield, MoreHorizontal, Users } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { toast } from 'sonner'
-import { getOrgMembers, inviteUser } from '@/lib/services/members'
-import { createClient } from '@/lib/supabase/client'
 import type { Member } from '@/lib/types'
 
 interface OrganizationMembersClientProps {
@@ -58,7 +72,11 @@ export default function OrganizationMembersClient({ organizationName, currentUse
   const fetchMembers = async () => {
     setIsLoading(true)
     try {
-      const data = await getOrgMembers(organizationName)
+      const response = await fetch(`/api/v2/members?organization=${encodeURIComponent(organizationName)}`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch members')
+      }
+      const data = await response.json()
       setMembers(data)
       setFilteredMembers(data)
     } catch (error) {
@@ -86,14 +104,26 @@ export default function OrganizationMembersClient({ organizationName, currentUse
 
     setIsInviting(true)
     try {
-      await inviteUser(inviteEmail, organizationName, inviteAsAdmin)
+      const response = await fetch('/api/v2/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: inviteEmail,
+          organizationName,
+          isAdmin: inviteAsAdmin
+        })
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to invite member')
+      }
       toast.success('Invitation sent! They\'ll receive a magic link via email.')
       setInviteDialogOpen(false)
       setInviteEmail('')
       setInviteAsAdmin(false)
       fetchMembers()
     } catch (error) {
-      toast.error('Failed to invite member')
+      toast.error(error instanceof Error ? error.message : 'Failed to invite member')
       console.error(error)
     } finally {
       setIsInviting(false)
@@ -110,20 +140,23 @@ export default function OrganizationMembersClient({ organizationName, currentUse
 
     setIsUpdating(true)
     try {
-      const supabase = createClient()
-      const { error } = await supabase
-        .from('users')
-        .update({ is_admin: editingMember.is_admin })
-        .eq('id', editingMember.id)
+      const response = await fetch(`/api/v2/members/${editingMember.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isAdmin: editingMember.is_admin })
+      })
 
-      if (error) throw error
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to update member')
+      }
 
       toast.success('Member updated successfully')
       setEditDialogOpen(false)
       setEditingMember(null)
       fetchMembers()
     } catch (error) {
-      toast.error('Failed to update member')
+      toast.error(error instanceof Error ? error.message : 'Failed to update member')
       console.error(error)
     } finally {
       setIsUpdating(false)
@@ -140,20 +173,21 @@ export default function OrganizationMembersClient({ organizationName, currentUse
 
     setIsDeleting(true)
     try {
-      const supabase = createClient()
-      const { error } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', deletingMember.id)
+      const response = await fetch(`/api/v2/members/${deletingMember.id}`, {
+        method: 'DELETE'
+      })
 
-      if (error) throw error
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to remove member')
+      }
 
       toast.success('Member removed successfully')
       setDeleteDialogOpen(false)
       setDeletingMember(null)
       fetchMembers()
     } catch (error) {
-      toast.error('Failed to remove member')
+      toast.error(error instanceof Error ? error.message : 'Failed to remove member')
       console.error(error)
     } finally {
       setIsDeleting(false)
@@ -162,111 +196,126 @@ export default function OrganizationMembersClient({ organizationName, currentUse
 
   return (
     <div className="space-y-6">
-      {/* Header Actions */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            type="text"
-            placeholder="Search members by email..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-
-        <Button onClick={() => setInviteDialogOpen(true)}>
-          <UserPlus className="h-4 w-4 mr-2" />
-          Invite Member
-        </Button>
-      </div>
-
-      {/* Members Table */}
-      <div className="bg-white rounded-lg border">
-        {isLoading ? (
-          <div className="flex justify-center items-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col md:flex-row md:items-center gap-4">
+            <div className="flex-1">
+              <CardTitle>Organization Members</CardTitle>
+              <CardDescription>
+                {filteredMembers.length} {filteredMembers.length === 1 ? 'member' : 'members'} in {organizationName}
+              </CardDescription>
+            </div>
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Search members by email..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 w-full md:w-64"
+                />
+              </div>
+              <Button onClick={() => setInviteDialogOpen(true)}>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Invite Member
+              </Button>
+            </div>
           </div>
-        ) : filteredMembers.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-500">
-              {searchTerm ? 'No members found matching your search' : 'No members in your organization yet'}
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Role
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Joined
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredMembers.map((member) => (
-                  <tr key={member.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-900">{member.email}</span>
-                        {member.id === currentUserId && (
-                          <span className="text-xs text-gray-500">(You)</span>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex justify-center items-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : filteredMembers.length === 0 ? (
+            <div className="text-center py-12">
+              <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium mb-1">
+                {searchTerm ? 'No members found' : 'No members yet'}
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                {searchTerm ? 'Try adjusting your search.' : 'Invite members to your organization.'}
+              </p>
+              {!searchTerm && (
+                <Button onClick={() => setInviteDialogOpen(true)}>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Invite First Member
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Joined</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredMembers.map((member) => (
+                    <TableRow key={member.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{member.email}</span>
+                          {member.id === currentUserId && (
+                            <span className="text-xs text-muted-foreground">(You)</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {member.is_admin ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                            <Shield className="h-3 w-3 mr-1" />
+                            Admin
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">
+                            Member
+                          </span>
                         )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {member.is_admin ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                          <Shield className="h-3 w-3 mr-1" />
-                          Admin
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          Member
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {member.created_at ? new Date(member.created_at).toLocaleDateString() : 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditClick(member)}
-                          className="hover:bg-gray-200"
-                          disabled={member.id === currentUserId}
-                        >
-                          <SquarePen className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteClick(member)}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-100"
-                          disabled={member.id === currentUserId}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {member.created_at ? new Date(member.created_at).toLocaleDateString() : 'N/A'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {member.id !== currentUserId ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Open menu</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleEditClick(member)}>
+                                <SquarePen className="h-4 w-4" />
+                                Edit Member
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleDeleteClick(member)}
+                                variant="destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Remove Member
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Invite Member Dialog */}
       <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>

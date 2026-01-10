@@ -7,8 +7,22 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Clock, FileText } from "lucide-react"
-import { getResourceVersions, type ResourceVersion } from "@/lib/services/versions"
 import { toast } from "sonner"
+
+interface ResourceVersion {
+  id: string
+  resourceId: string
+  versionNumber: number
+  title: string
+  description: string | null
+  resourceType: string
+  externalLink: string | null
+  updatedBy: string
+  updatedByUserId: string
+  createdAt: string
+  changeNotes: string | null
+  metadata: Record<string, any>
+}
 
 interface VersionHistoryDialogProps {
   resourceId: string
@@ -29,7 +43,11 @@ export default function VersionHistoryDialog({ resourceId, resourceTitle }: Vers
   const fetchVersions = async () => {
     try {
       setIsLoading(true)
-      const data = await getResourceVersions(resourceId)
+      const response = await fetch(`/api/v2/resources/${resourceId}/versions`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch versions')
+      }
+      const data = await response.json()
       setVersions(data)
     } catch (error) {
       toast.error("Failed to load version history")
@@ -76,7 +94,7 @@ export default function VersionHistoryDialog({ resourceId, resourceTitle }: Vers
                   <div>
                     <div className="flex items-center gap-2">
                       <Badge variant={index === 0 ? "default" : "outline"}>
-                        Version {version.version_number}
+                        Version {version.versionNumber}
                       </Badge>
                       {index === 0 && (
                         <Badge variant="secondary" className="text-xs">
@@ -85,11 +103,11 @@ export default function VersionHistoryDialog({ resourceId, resourceTitle }: Vers
                       )}
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {new Date(version.created_at).toLocaleString()}
+                      {new Date(version.createdAt).toLocaleString()}
                     </p>
                   </div>
                   <div className="text-sm text-muted-foreground text-right">
-                    by {version.updated_by}
+                    by {version.updatedBy}
                   </div>
                 </div>
 
@@ -103,16 +121,16 @@ export default function VersionHistoryDialog({ resourceId, resourceTitle }: Vers
                     )}
                   </div>
 
-                  {version.change_notes && (
+                  {version.changeNotes && (
                     <div className="bg-blue-50 border border-blue-200 rounded p-2">
                       <p className="text-xs font-medium text-blue-900">Change Notes:</p>
-                      <p className="text-sm text-blue-800">{version.change_notes}</p>
+                      <p className="text-sm text-blue-800">{version.changeNotes}</p>
                     </div>
                   )}
 
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span>Type: {version.resource_type}</span>
-                    {version.external_link && (
+                    <span>Type: {version.resourceType}</span>
+                    {version.externalLink && (
                       <span>• External Link Updated</span>
                     )}
                     {version.metadata?.filesAdded > 0 && (

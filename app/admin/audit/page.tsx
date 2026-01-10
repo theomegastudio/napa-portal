@@ -2,9 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
-import { getAuditLogs, getAuditLogStats, exportAuditLogsToCSV, type AuditLog } from "@/lib/services/audit"
-import { getUserProfile, isNapaAdmin } from "@/lib/services/auth"
+import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -13,14 +11,26 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
-import { ArrowLeft, Download, FileText, Activity, Users, TrendingUp } from "lucide-react"
+import { Download, FileText, Activity, Users, TrendingUp } from "lucide-react"
+import AdminLayout from "@/components/AdminLayout"
+
+interface AuditLog {
+  id: string
+  createdAt: string
+  userId: string
+  userEmail: string
+  organization: string
+  action: string
+  resourceId: string | null
+  resourceTitle: string | null
+  resourceType: string | null
+  metadata: Record<string, any>
+}
 
 export default function AuditLogPage() {
   const router = useRouter()
-  const supabase = createClient()
+  const { data: session, status } = useSession()
 
-  const [user, setUser] = useState<any>(null)
-  const [authLoading, setAuthLoading] = useState(true)
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
@@ -32,69 +42,50 @@ export default function AuditLogPage() {
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
   const [page, setPage] = useState(0)
-  const [isNapaUser, setIsNapaUser] = useState(false)
 
+  const isNapaUser = session?.user?.isNapaAdmin || false
   const ITEMS_PER_PAGE = 50
 
   useEffect(() => {
-    checkUser()
-  }, [])
+    if (status === 'loading') return
+    if (!session?.user) {
+      router.push('/login')
+      return
+    }
+    if (!session.user.isAdmin) {
+      toast.error("Access denied: Admin privileges required")
+      router.push('/')
+      return
+    }
+  }, [session, status, router])
 
   useEffect(() => {
-    if (user) {
+    if (status === 'authenticated' && session?.user?.isAdmin) {
       fetchLogs()
       fetchStats()
     }
-  }, [user, action, organization, startDate, endDate, page])
+  }, [session, status, action, organization, startDate, endDate, page])
 
-  const checkUser = async () => {
-    try {
-      const { data: { user: authUser } } = await supabase.auth.getUser()
+  const buildQueryParams = () => {
+    const params = new URLSearchParams()
+    params.set('limit', ITEMS_PER_PAGE.toString())
+    params.set('offset', (page * ITEMS_PER_PAGE).toString())
 
-      if (!authUser) {
-        router.push('/login')
-        return
-      }
+    if (action !== "all") params.set('action', action)
+    if (startDate) params.set('startDate', new Date(startDate).toISOString())
+    if (endDate) params.set('endDate', new Date(endDate).toISOString())
+    if (organization !== "all") params.set('organization', organization)
 
-      const profile = await getUserProfile(authUser.id)
-      const adminStatus = await isNapaAdmin(authUser.id)
-
-      if (!profile.is_admin) {
-        toast.error("Access denied: Admin privileges required")
-        router.push('/')
-        return
-      }
-
-      setUser(profile)
-      setIsNapaUser(adminStatus)
-    } catch (error) {
-      console.error('Error checking user:', error)
-      router.push('/login')
-    } finally {
-      setAuthLoading(false)
-    }
+    return params
   }
 
   const fetchLogs = async () => {
     try {
       setIsLoading(true)
-      const params: any = {
-        limit: ITEMS_PER_PAGE,
-        offset: page * ITEMS_PER_PAGE
-      }
-
-      if (action !== "all") params.action = action
-      if (startDate) params.startDate = new Date(startDate).toISOString()
-      if (endDate) params.endDate = new Date(endDate).toISOString()
-
-      // If user is not NAPA admin, filter by their organization
-      if (!isNapaUser && user?.organization_name) {
-        params.organization = user.organization_name
-      } else if (organization !== "all") {
-        params.organization = organization
-      }
-
-      const result = await getAuditLogs(params)
+      const params = buildQueryParams()
+      const response = await fetch(`/api/v2/admin/audit?${params}`)
+      if (!response.ok) throw new Error('Failed to fetch audit logs')
+      const result = await response.json()
       setLogs(result.logs)
       setTotal(result.total)
     } catch (error) {
@@ -107,17 +98,15 @@ export default function AuditLogPage() {
 
   const fetchStats = async () => {
     try {
-      const params: any = {}
-      if (startDate) params.startDate = new Date(startDate).toISOString()
-      if (endDate) params.endDate = new Date(endDate).toISOString()
+      const params = new URLSearchParams()
+      params.set('stats', 'true')
+      if (startDate) params.set('startDate', new Date(startDate).toISOString())
+      if (endDate) params.set('endDate', new Date(endDate).toISOString())
+      if (organization !== "all") params.set('organization', organization)
 
-      if (!isNapaUser && user?.organization_name) {
-        params.organization = user.organization_name
-      } else if (organization !== "all") {
-        params.organization = organization
-      }
-
-      const result = await getAuditLogStats(params)
+      const response = await fetch(`/api/v2/admin/audit?${params}`)
+      if (!response.ok) throw new Error('Failed to fetch stats')
+      const result = await response.json()
       setStats(result)
     } catch (error) {
       console.error('Error fetching stats:', error)
@@ -126,19 +115,13 @@ export default function AuditLogPage() {
 
   const handleExport = async () => {
     try {
-      const params: any = {}
-      if (action !== "all") params.action = action
-      if (startDate) params.startDate = new Date(startDate).toISOString()
-      if (endDate) params.endDate = new Date(endDate).toISOString()
+      const params = buildQueryParams()
+      params.set('export', 'csv')
 
-      if (!isNapaUser && user?.organization_name) {
-        params.organization = user.organization_name
-      } else if (organization !== "all") {
-        params.organization = organization
-      }
+      const response = await fetch(`/api/v2/admin/audit?${params}`)
+      if (!response.ok) throw new Error('Failed to export')
 
-      const csvContent = await exportAuditLogsToCSV(params)
-      const blob = new Blob([csvContent], { type: 'text/csv' })
+      const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -168,7 +151,7 @@ export default function AuditLogPage() {
     }
   }
 
-  if (authLoading) {
+  if (status === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Skeleton className="h-12 w-64" />
@@ -176,39 +159,24 @@ export default function AuditLogPage() {
     )
   }
 
-  if (!user) {
+  if (!session?.user?.isAdmin) {
     return null
   }
 
   const totalPages = Math.ceil(total / ITEMS_PER_PAGE)
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" onClick={() => router.push('/')}>
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
-              </Button>
-              <div>
-                <h1 className="text-2xl font-bold">Audit Logs</h1>
-                <p className="text-sm text-muted-foreground">
-                  {isNapaUser ? 'System-wide activity log' : `Activity log for ${user.organization_name}`}
-                </p>
-              </div>
-            </div>
-            <Button onClick={handleExport}>
-              <Download className="mr-2 h-4 w-4" />
-              Export CSV
-            </Button>
-          </div>
+    <AdminLayout
+      title="Audit Logs"
+      description={isNapaUser ? 'System-wide activity log' : `Activity log for ${session.user.organizationName}`}
+    >
+        {/* Export Button */}
+        <div className="flex justify-end mb-6">
+          <Button onClick={handleExport}>
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
         </div>
-      </header>
-
-      <main className="flex-1 container mx-auto px-4 py-8">
         {/* Stats Cards */}
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -356,17 +324,17 @@ export default function AuditLogPage() {
                       {logs.map((log) => (
                         <TableRow key={log.id}>
                           <TableCell className="font-mono text-sm">
-                            {new Date(log.created_at).toLocaleString()}
+                            {new Date(log.createdAt).toLocaleString()}
                           </TableCell>
-                          <TableCell className="text-sm">{log.user_email}</TableCell>
+                          <TableCell className="text-sm">{log.userEmail}</TableCell>
                           {isNapaUser && <TableCell className="text-sm">{log.organization}</TableCell>}
                           <TableCell>
                             <Badge className={getActionColor(log.action)}>
                               {log.action}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-sm">{log.resource_title || 'N/A'}</TableCell>
-                          <TableCell className="text-sm">{log.resource_type || 'N/A'}</TableCell>
+                          <TableCell className="text-sm">{log.resourceTitle || 'N/A'}</TableCell>
+                          <TableCell className="text-sm">{log.resourceType || 'N/A'}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -403,7 +371,6 @@ export default function AuditLogPage() {
             )}
           </CardContent>
         </Card>
-      </main>
-    </div>
+    </AdminLayout>
   )
 }

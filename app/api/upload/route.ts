@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { auth } from '@/lib/auth'
 import { validateFileServer, validateFileSizeServer } from '@/lib/utils/server-file-validation'
+import { writeFile, mkdir } from 'fs/promises'
+import path from 'path'
 
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    // Check authentication using Auth.js
+    const session = await auth()
 
-    if (authError || !user) {
+    if (!session?.user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -49,35 +50,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Upload to Supabase storage
+    // Create unique filename
     const filename = customFilename || file.name
     const timestamp = Date.now()
     const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '_')
     const uniqueFilename = `${timestamp}-${sanitizedFilename}`
 
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('resource-files')
-      .upload(uniqueFilename, buffer, {
-        contentType: file.type,
-        upsert: false,
-      })
+    // Ensure uploads directory exists
+    const uploadsDir = path.join(process.cwd(), 'public', 'uploads')
+    await mkdir(uploadsDir, { recursive: true })
 
-    if (uploadError) {
-      console.error('Upload error:', uploadError)
-      return NextResponse.json(
-        { error: 'Failed to upload file to storage' },
-        { status: 500 }
-      )
-    }
+    // Write file to local storage
+    const filePath = path.join(uploadsDir, uniqueFilename)
+    await writeFile(filePath, buffer)
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from('resource-files')
-      .getPublicUrl(uploadData.path)
+    // Return the public URL
+    const publicUrl = `/uploads/${uniqueFilename}`
 
     return NextResponse.json({
       success: true,
-      url: urlData.publicUrl,
+      url: publicUrl,
       name: filename,
       detectedType: validation.detectedType,
     })

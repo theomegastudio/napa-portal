@@ -1,21 +1,25 @@
 'use client'
 
 import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Building2, Loader2 } from "lucide-react"
-import { getOrganizations, updateUserOrganization } from "@/lib/services/organizations"
-import { getCurrentUser } from "@/lib/services/auth"
 import { toast } from "sonner"
-import type { Organization } from "@/lib/types"
+
+interface Organization {
+  id: string
+  organization_name: string
+}
 
 interface OrganizationSetupProps {
   onComplete: () => void
 }
 
 export default function OrganizationSetup({ onComplete }: OrganizationSetupProps) {
+  const { data: session } = useSession()
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [selectedOrg, setSelectedOrg] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -27,7 +31,9 @@ export default function OrganizationSetup({ onComplete }: OrganizationSetupProps
 
   const fetchOrganizations = async () => {
     try {
-      const data = await getOrganizations()
+      const response = await fetch('/api/v2/organizations')
+      if (!response.ok) throw new Error('Failed to fetch organizations')
+      const data = await response.json()
       setOrganizations(data)
     } catch (error) {
       toast.error("Failed to load organizations")
@@ -39,7 +45,7 @@ export default function OrganizationSetup({ onComplete }: OrganizationSetupProps
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!selectedOrg) {
       toast.error("Please select your organization")
       return
@@ -48,10 +54,14 @@ export default function OrganizationSetup({ onComplete }: OrganizationSetupProps
     setIsSubmitting(true)
 
     try {
-      const user = await getCurrentUser()
-      if (!user) throw new Error("No user found")
-      
-      await updateUserOrganization(user.id, selectedOrg)
+      const response = await fetch('/api/v2/user', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ organizationName: selectedOrg }),
+      })
+
+      if (!response.ok) throw new Error('Failed to update profile')
+
       toast.success("Profile completed successfully!")
       onComplete()
     } catch (error) {

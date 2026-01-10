@@ -19,7 +19,7 @@ export default function NapaLogo({ size = 'md', className = '' }: NapaLogoProps)
   return (
     <div className={`${sizeClasses[size]} ${className} flex items-center justify-center`}>
       {/* Placeholder - Replace with actual logo */}
-      <div className="rounded-full bg-yellow-500 h-full w-full flex items-center justify-center text-white font-bold text-xl">
+      <div className="rounded-full bg-primary h-full w-full flex items-center justify-center text-primary-foreground font-bold text-xl">
         NAPA
       </div>
 

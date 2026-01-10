@@ -2,18 +2,26 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { getOrganizations } from '@/lib/services/organizations'
-import { signUpWithMagicLink } from '@/lib/services/auth'
+import { signIn } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
+import { Loader2, CheckCircle2 } from 'lucide-react'
 import NapaAuthLogo from '@/components/NapaAuthLogo'
-import type { Organization } from '@/lib/types'
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldError,
+} from "@/components/ui/field"
+
+interface Organization {
+  id: string
+  organization_name: string
+}
 
 function SignUpForm() {
   const router = useRouter()
@@ -21,13 +29,18 @@ function SignUpForm() {
   const emailParam = searchParams.get('email')
 
   const [email, setEmail] = useState(emailParam || '')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [name, setName] = useState('')
   const [organizationName, setOrganizationName] = useState('')
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [loadingOrgs, setLoadingOrgs] = useState(true)
-  const [emailSent, setEmailSent] = useState(false)
+  const [isSuccess, setIsSuccess] = useState(false)
+  const [isPendingApproval, setIsPendingApproval] = useState(false)
   const [isNapaEmail, setIsNapaEmail] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Check if email is from NAPA domain
   useEffect(() => {
@@ -43,10 +56,12 @@ function SignUpForm() {
   useEffect(() => {
     async function fetchOrganizations() {
       try {
-        const orgs = await getOrganizations()
+        const response = await fetch('/api/v2/organizations')
+        if (!response.ok) throw new Error('Failed to fetch organizations')
+        const orgs = await response.json()
         // Filter out NAPA since it's auto-assigned for NAPA emails
         const filteredOrgs = orgs.filter(
-          org => org.organization_name !== 'National APIDA Panhellenic Association'
+          (org: Organization) => org.organization_name !== 'National APIDA Panhellenic Association'
         )
         setOrganizations(filteredOrgs)
       } catch (error) {
@@ -61,189 +76,328 @@ function SignUpForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError(null)
 
     if (!email) {
-      toast.error('Please enter your email')
+      setError('Please enter your email')
       return
     }
 
-    if (!organizationName) {
-      toast.error('Please select your organization')
+    if (!password) {
+      setError('Please enter a password')
+      return
+    }
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters')
+      return
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+
+    if (!organizationName && !isNapaEmail) {
+      setError('Please select your organization')
       return
     }
 
     if (!termsAccepted) {
-      toast.error('Please accept the terms and conditions')
+      setError('Please accept the terms and conditions')
       return
     }
 
     setIsLoading(true)
 
     try {
-      await signUpWithMagicLink(email, organizationName)
-      setEmailSent(true)
-      toast.success('Check your email for the magic link!')
+      // Create account
+      const response = await fetch('/api/v2/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password,
+          name: name || undefined,
+          organizationName: isNapaEmail ? undefined : organizationName,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || 'Failed to create account')
+        return
+      }
+
+      setIsSuccess(true)
+
+      // Check approval status and redirect accordingly
+      if (data.approvalStatus === 'pending') {
+        setIsPendingApproval(true)
+        toast.success('Account created! Awaiting approval.')
+        // Auto sign in then redirect to pending page
+        setTimeout(async () => {
+          const result = await signIn('credentials', {
+            email,
+            password,
+            redirect: false,
+          })
+
+          if (result?.ok) {
+            router.push('/pending-approval')
+            router.refresh()
+          } else {
+            router.push('/login')
+          }
+        }, 1500)
+      } else {
+        toast.success('Account created successfully!')
+        // Auto sign in after successful registration
+        setTimeout(async () => {
+          const result = await signIn('credentials', {
+            email,
+            password,
+            redirect: false,
+          })
+
+          if (result?.ok) {
+            router.push('/')
+            router.refresh()
+          } else {
+            router.push('/login')
+          }
+        }, 1500)
+      }
     } catch (error) {
-      toast.error('Failed to send magic link')
+      setError('An error occurred. Please try again.')
       console.error(error)
     } finally {
       setIsLoading(false)
     }
   }
 
-  if (emailSent) {
+  if (isSuccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <Card className="w-full max-w-md shadow-sm">
-          <CardHeader className="text-center space-y-2">
-            <CardTitle className="text-2xl font-semibold">Check your email</CardTitle>
-            <CardDescription>
-              We sent a magic link to <strong>{email}</strong>
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground text-center">
-              Click the link in the email to complete your registration. You can close this page.
+      <div className="grid min-h-svh lg:grid-cols-2">
+        <div className="flex flex-col gap-4 p-6 md:p-10">
+          <div className="flex justify-center gap-2 md:justify-start">
+            <a href="/">
+              <NapaAuthLogo size="xl" />
+            </a>
+          </div>
+          <div className="flex flex-1 items-center justify-center">
+            <div className="w-full max-w-xs text-center">
+              <div className="flex flex-col items-center gap-4">
+                <div className={`flex h-16 w-16 items-center justify-center rounded-full ${isPendingApproval ? 'bg-primary/10' : 'bg-green-100'}`}>
+                  <CheckCircle2 className={`h-8 w-8 ${isPendingApproval ? 'text-primary' : 'text-green-600'}`} />
+                </div>
+                <h1 className="text-2xl font-bold">Account Created!</h1>
+                <p className="text-muted-foreground text-sm">
+                  {isPendingApproval
+                    ? 'Your account is pending approval from your organization administrator.'
+                    : 'Your account has been created successfully. Signing you in...'}
+                </p>
+                <Loader2 className="h-6 w-6 animate-spin text-primary mt-4" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="bg-primary relative hidden lg:flex lg:flex-col lg:items-center lg:justify-center lg:p-12">
+          <div className="text-center space-y-6">
+            <div className="flex justify-center">
+              <NapaAuthLogo size="xl" />
+            </div>
+            <h2 className="text-3xl font-bold text-primary-foreground">{isPendingApproval ? 'Almost There!' : 'Welcome!'}</h2>
+            <p className="text-lg text-primary-foreground/80 max-w-md mx-auto">
+              A shared resource library for NAPA organizations to collaborate and share best practices.
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <div className="w-full max-w-md space-y-4">
-        <Card className="shadow-sm">
-        <CardHeader className="text-center space-y-2 pb-2">
-          <div className="flex justify-center mb-4">
-            <NapaAuthLogo size="lg" />
-          </div>
-          <CardTitle className="text-2xl font-semibold">Create your account</CardTitle>
-          <CardDescription className="text-base">
-            Welcome to NAPA Resource Hub
-          </CardDescription>
-          <CardDescription className="text-sm">
-            Fill in your information to get started
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-normal">
-                Email address
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={isLoading || !!emailParam}
-                required
-                className="h-11"
-              />
-            </div>
-
-            {isNapaEmail ? (
-              <div className="space-y-2">
-                <Label htmlFor="organization" className="text-sm font-normal">
-                  Organization
-                </Label>
-                <Input
-                  id="organization"
-                  value="National APIDA Panhellenic Association"
-                  disabled
-                  className="h-11 bg-gray-100"
-                />
-                <p className="text-xs text-gray-500">
-                  Automatically assigned based on your email domain
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Label htmlFor="organization" className="text-sm font-normal">
-                  Organization
-                </Label>
-                <Select
-                  value={organizationName}
-                  onValueChange={setOrganizationName}
-                  disabled={isLoading || loadingOrgs}
-                  required
-                >
-                  <SelectTrigger className="h-11 w-full">
-                    <SelectValue placeholder={loadingOrgs ? "Loading organizations..." : "Select your organization"} />
-                  </SelectTrigger>
-                  <SelectContent position="popper" sideOffset={5}>
-                    {organizations.length === 0 ? (
-                      <div className="p-2 text-sm text-gray-500">No organizations available</div>
-                    ) : (
-                      organizations.map((org) => (
-                        <SelectItem key={org.id} value={org.organization_name}>
-                          {org.organization_name}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-                {!loadingOrgs && organizations.length > 0 && (
-                  <p className="text-xs text-gray-500">
-                    {organizations.length} organization(s) available
+    <div className="grid min-h-svh lg:grid-cols-2">
+      <div className="flex flex-col gap-4 p-6 md:p-10">
+        <div className="flex justify-center gap-2 md:justify-start">
+          <a href="/">
+            <NapaAuthLogo size="xl" />
+          </a>
+        </div>
+        <div className="flex flex-1 items-center justify-center">
+          <div className="w-full max-w-sm">
+            <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+              <FieldGroup>
+                <div className="flex flex-col items-center gap-1 text-center">
+                  <h1 className="text-2xl font-bold">Create your account</h1>
+                  <p className="text-muted-foreground text-sm text-balance">
+                    Join the NAPA Resource Hub community
                   </p>
+                </div>
+
+                {error && (
+                  <FieldError className="text-center">{error}</FieldError>
                 )}
-              </div>
-            )}
 
-            <div className="flex items-start space-x-2">
-              <Checkbox
-                id="terms"
-                checked={termsAccepted}
-                onCheckedChange={(checked) => setTermsAccepted(checked as boolean)}
-                disabled={isLoading}
-              />
-              <Label
-                htmlFor="terms"
-                className="text-sm font-normal leading-tight cursor-pointer"
-              >
-                I agree to the{' '}
-                <a href="/terms" target="_blank" className="text-yellow-600 hover:text-yellow-700 font-medium underline">
-                  Terms and Conditions
-                </a>
-                {' '}and{' '}
-                <a href="/privacy" target="_blank" className="text-yellow-600 hover:text-yellow-700 font-medium underline">
-                  Privacy Policy
-                </a>
-              </Label>
-            </div>
+                <Field>
+                  <FieldLabel htmlFor="name">Full Name</FieldLabel>
+                  <Input
+                    id="name"
+                    type="text"
+                    placeholder="John Doe"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    disabled={isLoading}
+                  />
+                </Field>
 
-            <Button
-              type="submit"
-              className="w-full h-11 bg-yellow-500 hover:bg-yellow-600 text-black font-medium"
-              disabled={isLoading || loadingOrgs}
-            >
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Continue
-            </Button>
+                <Field>
+                  <FieldLabel htmlFor="email">Email</FieldLabel>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="chair@napahq.org"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={isLoading || !!emailParam}
+                    required
+                  />
+                </Field>
 
-            <p className="text-center text-sm text-gray-600">
-              Already have an account?{' '}
-              <a href="/login" className="text-yellow-600 hover:text-yellow-700 font-medium">
-                Sign in
-              </a>
-            </p>
-          </form>
-        </CardContent>
-      </Card>
-      <div className="text-center text-sm text-gray-600">
-        <a href="/terms" className="hover:text-yellow-600 underline">
-          Terms of Service
-        </a>
-        {' • '}
-        <a href="/privacy" className="hover:text-yellow-600 underline">
-          Privacy Policy
-        </a>
+                <Field>
+                  <FieldLabel htmlFor="password">Password</FieldLabel>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Create a password (min 8 characters)"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
+                    required
+                  />
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="confirmPassword">Confirm Password</FieldLabel>
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    placeholder="Confirm your password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    disabled={isLoading}
+                    required
+                  />
+                </Field>
+
+                {isNapaEmail ? (
+                  <Field>
+                    <FieldLabel htmlFor="organization">Organization</FieldLabel>
+                    <Input
+                      id="organization"
+                      value="National APIDA Panhellenic Association"
+                      disabled
+                      className="bg-muted"
+                    />
+                    <FieldDescription>
+                      Automatically assigned based on your email domain
+                    </FieldDescription>
+                  </Field>
+                ) : (
+                  <Field>
+                    <FieldLabel htmlFor="organization">Organization</FieldLabel>
+                    <Select
+                      value={organizationName}
+                      onValueChange={setOrganizationName}
+                      disabled={isLoading || loadingOrgs}
+                      required
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder={loadingOrgs ? "Loading..." : "Select your organization"} />
+                      </SelectTrigger>
+                      <SelectContent position="popper" sideOffset={5}>
+                        {organizations.length === 0 ? (
+                          <div className="p-2 text-sm text-muted-foreground">No organizations available</div>
+                        ) : (
+                          organizations.map((org) => (
+                            <SelectItem key={org.id} value={org.organization_name}>
+                              {org.organization_name}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                )}
+
+                <Field orientation="horizontal">
+                  <Checkbox
+                    id="terms"
+                    checked={termsAccepted}
+                    onCheckedChange={(checked) => setTermsAccepted(checked as boolean)}
+                    disabled={isLoading}
+                  />
+                  <label
+                    htmlFor="terms"
+                    className="text-sm leading-tight cursor-pointer"
+                  >
+                    I agree to the{' '}
+                    <a href="/terms" target="_blank" className="text-primary hover:text-primary/80 underline underline-offset-4">
+                      Terms
+                    </a>
+                    {' '}and{' '}
+                    <a href="/privacy" target="_blank" className="text-primary hover:text-primary/80 underline underline-offset-4">
+                      Privacy Policy
+                    </a>
+                  </label>
+                </Field>
+
+                <Field>
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={isLoading || loadingOrgs}
+                  >
+                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Create Account
+                  </Button>
+                </Field>
+
+                <FieldDescription className="text-center">
+                  Already have an account?{' '}
+                  <a href="/login" className="text-primary hover:text-primary/80 underline underline-offset-4">
+                    Sign in
+                  </a>
+                </FieldDescription>
+              </FieldGroup>
+            </form>
+          </div>
+        </div>
+        <div className="text-center text-sm text-muted-foreground">
+          <a href="/terms" className="hover:text-primary underline underline-offset-4">
+            Terms of Service
+          </a>
+          {' · '}
+          <a href="/privacy" className="hover:text-primary underline underline-offset-4">
+            Privacy Policy
+          </a>
+        </div>
       </div>
-    </div>
+      <div className="bg-primary relative hidden lg:flex lg:flex-col lg:items-center lg:justify-center lg:p-12">
+        <div className="text-center space-y-6">
+          <div className="flex justify-center">
+            <NapaAuthLogo size="xl" />
+          </div>
+          <h2 className="text-3xl font-bold text-black">
+            NAPA Resource Hub
+          </h2>
+          <p className="text-lg text-black/80 max-w-md mx-auto">
+            A shared resource library for NAPA organizations to collaborate and share best practices.
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
@@ -251,8 +405,8 @@ function SignUpForm() {
 export default function SignUpPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Loader2 className="h-8 w-8 animate-spin text-yellow-500" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     }>
       <SignUpForm />

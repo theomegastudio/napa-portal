@@ -2,34 +2,56 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { getAllUsers, getCurrentUser, isNapaAdmin, updateUser, deleteUser } from '@/lib/services/auth'
-import { getOrganizations } from '@/lib/services/organizations'
+import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toast } from 'sonner'
-import { Loader2, SquarePen, Trash2, Search, ArrowLeft } from 'lucide-react'
-import type { User, Organization } from '@/lib/types'
+import { Loader2, SquarePen, Trash2, Search, MoreHorizontal, Users } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import AdminLayout from '@/components/AdminLayout'
+
+interface User {
+  id: string
+  email: string
+  organizationName: string | null
+  isAdmin: boolean
+  isNapaAdmin: boolean
+  approvalStatus: string
+  createdAt: string
+}
+
+interface Organization {
+  id: string
+  organizationName: string
+  createdAt: string
+}
 
 export default function AdminUsersPage() {
   const router = useRouter()
+  const { data: session, status } = useSession()
   const [users, setUsers] = useState<User[]>([])
   const [filteredUsers, setFilteredUsers] = useState<User[]>([])
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isAuthorized, setIsAuthorized] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedOrg, setSelectedOrg] = useState<string>('all')
 
   // Edit dialog state
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
-  const [editForm, setEditForm] = useState({ email: '', organization_name: '', is_admin: false })
+  const [editForm, setEditForm] = useState({ email: '', organizationName: '', isAdmin: false })
   const [isSaving, setIsSaving] = useState(false)
 
   // Delete dialog state
@@ -38,41 +60,18 @@ export default function AdminUsersPage() {
   const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
-    async function checkAuthAndLoadData() {
-      try {
-        const currentUser = await getCurrentUser()
-        if (!currentUser) {
-          router.push('/login')
-          return
-        }
-
-        const isAdmin = await isNapaAdmin(currentUser.id)
-        if (!isAdmin) {
-          toast.error('You do not have permission to access this page')
-          router.push('/')
-          return
-        }
-
-        setIsAuthorized(true)
-
-        const [usersData, orgsData] = await Promise.all([
-          getAllUsers(),
-          getOrganizations()
-        ])
-
-        setUsers(usersData)
-        setFilteredUsers(usersData)
-        setOrganizations(orgsData)
-      } catch (error) {
-        console.error('Failed to load data:', error)
-        toast.error('Failed to load user data')
-      } finally {
-        setIsLoading(false)
-      }
+    if (status === 'loading') return
+    if (!session?.user) {
+      router.push('/login')
+      return
     }
-
-    checkAuthAndLoadData()
-  }, [router])
+    if (!session.user.isNapaAdmin) {
+      toast.error('You do not have permission to access this page')
+      router.push('/')
+      return
+    }
+    fetchData()
+  }, [session, status, router])
 
   // Filter users based on search and organization
   useEffect(() => {
@@ -82,24 +81,41 @@ export default function AdminUsersPage() {
     if (searchQuery) {
       filtered = filtered.filter(user =>
         user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (user.organization_name?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
+        (user.organizationName?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
       )
     }
 
     // Filter by organization
     if (selectedOrg !== 'all') {
-      filtered = filtered.filter(user => user.organization_name === selectedOrg)
+      filtered = filtered.filter(user => user.organizationName === selectedOrg)
     }
 
     setFilteredUsers(filtered)
   }, [searchQuery, selectedOrg, users])
 
+  const fetchData = async () => {
+    try {
+      setIsLoading(true)
+      const response = await fetch('/api/v2/admin/users?includeOrgs=true')
+      if (!response.ok) throw new Error('Failed to fetch users')
+      const data = await response.json()
+      setUsers(data.users)
+      setFilteredUsers(data.users)
+      setOrganizations(data.organizations)
+    } catch (error) {
+      console.error('Failed to load data:', error)
+      toast.error('Failed to load user data')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const handleEditClick = (user: User) => {
     setEditingUser(user)
     setEditForm({
       email: user.email,
-      organization_name: user.organization_name || '',
-      is_admin: user.is_admin
+      organizationName: user.organizationName || '',
+      isAdmin: user.isAdmin
     })
     setEditDialogOpen(true)
   }
@@ -109,16 +125,25 @@ export default function AdminUsersPage() {
 
     setIsSaving(true)
     try {
-      await updateUser(editingUser.id, {
-        email: editForm.email,
-        organization_name: editForm.organization_name,
-        is_admin: editForm.is_admin
+      const response = await fetch(`/api/v2/admin/users/${editingUser.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: editForm.email,
+          organizationName: editForm.organizationName,
+          isAdmin: editForm.isAdmin
+        })
       })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to update user')
+      }
 
       // Update local state
       setUsers(users.map(u =>
         u.id === editingUser.id
-          ? { ...u, email: editForm.email, organization_name: editForm.organization_name, is_admin: editForm.is_admin }
+          ? { ...u, email: editForm.email, organizationName: editForm.organizationName, isAdmin: editForm.isAdmin }
           : u
       ))
 
@@ -126,7 +151,7 @@ export default function AdminUsersPage() {
       setEditDialogOpen(false)
     } catch (error) {
       console.error('Failed to update user:', error)
-      toast.error('Failed to update user')
+      toast.error(error instanceof Error ? error.message : 'Failed to update user')
     } finally {
       setIsSaving(false)
     }
@@ -142,7 +167,14 @@ export default function AdminUsersPage() {
 
     setIsDeleting(true)
     try {
-      await deleteUser(deletingUser.id)
+      const response = await fetch(`/api/v2/admin/users/${deletingUser.id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete user')
+      }
 
       // Update local state
       setUsers(users.filter(u => u.id !== deletingUser.id))
@@ -151,13 +183,13 @@ export default function AdminUsersPage() {
       setDeleteDialogOpen(false)
     } catch (error) {
       console.error('Failed to delete user:', error)
-      toast.error('Failed to delete user')
+      toast.error(error instanceof Error ? error.message : 'Failed to delete user')
     } finally {
       setIsDeleting(false)
     }
   }
 
-  if (isLoading) {
+  if (status === 'loading' || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -165,129 +197,120 @@ export default function AdminUsersPage() {
     )
   }
 
-  if (!isAuthorized) {
+  if (!session?.user?.isNapaAdmin) {
     return null
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="mb-4">
-        <Button
-          variant="ghost"
-          onClick={() => router.push('/')}
-          className="gap-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Dashboard
-        </Button>
-      </div>
+    <AdminLayout
+      title="User Management"
+      description="Manage all users across organizations (NAPA Admin Only)"
+      requiredRole="napaAdmin"
+    >
       <Card>
         <CardHeader>
-          <CardTitle className="text-3xl">User Management</CardTitle>
-          <CardDescription>
-            Manage all users across organizations (NAPA Admin Only)
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {/* Filters */}
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
+          <div className="flex flex-col md:flex-row md:items-center gap-4">
             <div className="flex-1">
+              <CardTitle>All Users</CardTitle>
+              <CardDescription>
+                Showing {filteredUsers.length} of {users.length} users
+              </CardDescription>
+            </div>
+            <div className="flex flex-col md:flex-row gap-4">
               <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search by email or organization..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
+                  className="pl-9 w-full md:w-64"
                 />
               </div>
-            </div>
-            <div className="w-full md:w-64">
               <Select value={selectedOrg} onValueChange={setSelectedOrg}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full md:w-48">
                   <SelectValue placeholder="Filter by organization" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Organizations</SelectItem>
                   {organizations.map((org) => (
-                    <SelectItem key={org.id} value={org.organization_name}>
-                      {org.organization_name}
+                    <SelectItem key={org.id} value={org.organizationName}>
+                      {org.organizationName}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
-
-          {/* User count */}
-          <div className="mb-4 text-sm text-gray-600">
-            Showing {filteredUsers.length} of {users.length} users
-          </div>
-
-          {/* Users table */}
-          <div className="border rounded-lg overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Organization</TableHead>
-                  <TableHead>Admin</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.length === 0 ? (
+        </CardHeader>
+        <CardContent>
+          {filteredUsers.length === 0 ? (
+            <div className="text-center py-12">
+              <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium mb-1">No users found</h3>
+              <p className="text-sm text-muted-foreground">
+                Try adjusting your search or filters.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-gray-500 py-8">
-                      No users found
-                    </TableCell>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Organization</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ) : (
-                  filteredUsers.map((user) => (
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell className="font-medium">{user.email}</TableCell>
-                      <TableCell>{user.organization_name || 'Not set'}</TableCell>
+                      <TableCell className="text-muted-foreground">{user.organizationName || 'Not set'}</TableCell>
                       <TableCell>
-                        {user.is_admin ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                        {user.isAdmin ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
                             Admin
                           </span>
                         ) : (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">
                             User
                           </span>
                         )}
                       </TableCell>
-                      <TableCell className="text-sm text-gray-500">
-                        {new Date(user.created_at).toLocaleDateString()}
+                      <TableCell className="text-muted-foreground">
+                        {new Date(user.createdAt).toLocaleDateString()}
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditClick(user)}
-                            className="hover:bg-gray-200"
-                          >
-                            <SquarePen className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteClick(user)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-100"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Open menu</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEditClick(user)}>
+                              <SquarePen className="h-4 w-4" />
+                              Edit User
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleDeleteClick(user)}
+                              variant="destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Delete User
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -313,8 +336,8 @@ export default function AdminUsersPage() {
             <div className="space-y-2">
               <Label htmlFor="edit-organization">Organization</Label>
               <Select
-                value={editForm.organization_name}
-                onValueChange={(value) => setEditForm({ ...editForm, organization_name: value })}
+                value={editForm.organizationName}
+                onValueChange={(value) => setEditForm({ ...editForm, organizationName: value })}
                 disabled={isSaving}
               >
                 <SelectTrigger id="edit-organization">
@@ -322,8 +345,8 @@ export default function AdminUsersPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {organizations.map((org) => (
-                    <SelectItem key={org.id} value={org.organization_name}>
-                      {org.organization_name}
+                    <SelectItem key={org.id} value={org.organizationName}>
+                      {org.organizationName}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -332,8 +355,8 @@ export default function AdminUsersPage() {
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="edit-admin"
-                checked={editForm.is_admin}
-                onCheckedChange={(checked) => setEditForm({ ...editForm, is_admin: checked as boolean })}
+                checked={editForm.isAdmin}
+                onCheckedChange={(checked) => setEditForm({ ...editForm, isAdmin: checked as boolean })}
                 disabled={isSaving}
               />
               <Label htmlFor="edit-admin" className="cursor-pointer">
@@ -368,7 +391,7 @@ export default function AdminUsersPage() {
                 <strong>Email:</strong> {deletingUser.email}
               </p>
               <p className="text-sm">
-                <strong>Organization:</strong> {deletingUser.organization_name || 'Not set'}
+                <strong>Organization:</strong> {deletingUser.organizationName || 'Not set'}
               </p>
             </div>
           )}
@@ -387,6 +410,6 @@ export default function AdminUsersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </AdminLayout>
   )
 }

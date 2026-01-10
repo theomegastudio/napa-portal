@@ -8,11 +8,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Upload, Loader2, AlertCircle } from "lucide-react"
-import { uploadFile } from "@/lib/services/storage"
-import { createResource } from "@/lib/services/resources"
 import { toast } from "sonner"
 import { validateFile, formatFileSize, MAX_FILE_SIZE } from "@/lib/utils/file-validation"
-import { createClient } from "@/lib/supabase/client"
 
 interface UploadResourceDialogProps {
   onSuccess: () => void
@@ -52,6 +49,24 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
     }
   }
 
+  const uploadFile = async (file: File): Promise<{ url: string; name: string }> => {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await fetch('/api/v2/upload', {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || 'Upload failed')
+    }
+
+    const data = await response.json()
+    return { url: data.url, name: data.name || file.name }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -84,21 +99,23 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
         }
       }
 
-      // Get current user ID
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('User not authenticated')
-
-      await createResource({
-        title,
-        description,
-        resourceType,
-        files: uploadedFiles.length > 0 ? uploadedFiles : undefined,
-        externalLink: externalLink || undefined,
-        organization: userOrganization,
-        uploadedBy: userEmail,
-        userId: user.id
+      // Create resource via API
+      const response = await fetch('/api/v2/resources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          description: description || undefined,
+          resourceType,
+          externalLink: externalLink || undefined,
+          files: uploadedFiles.length > 0 ? uploadedFiles : undefined,
+        }),
       })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create resource')
+      }
 
       toast.success("Resource added successfully!")
       setOpen(false)
@@ -232,7 +249,7 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
             <Button type="button" variant="ghost" onClick={() => setOpen(false)} className="h-10">
               Cancel
             </Button>
-            <Button type="submit" disabled={isUploading} className="h-10 bg-yellow-500 hover:bg-yellow-600 text-black">
+            <Button type="submit" disabled={isUploading} className="h-10">
               {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Add Resource
             </Button>

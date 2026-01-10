@@ -9,12 +9,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Edit, Loader2, AlertCircle, X, FileIcon, AlertTriangle } from "lucide-react"
-import { uploadFile } from "@/lib/services/storage"
-import { updateResource, deleteResourceFile } from "@/lib/services/resources"
+import { uploadFile } from "@/lib/services-drizzle/storage.client"
 import { toast } from "sonner"
 import { validateFile, formatFileSize, MAX_FILE_SIZE } from "@/lib/utils/file-validation"
 import type { Resource } from "@/lib/types"
-import { createClient } from "@/lib/supabase/client"
 
 interface EditResourceDialogProps {
   resource: Resource
@@ -137,9 +135,15 @@ export default function EditResourceDialogEnhanced({ resource, onSuccess }: Edit
     setIsUpdating(true)
 
     try {
-      // Delete marked files first
+      // Delete marked files first via API
       for (const fileId of filesToDelete) {
-        await deleteResourceFile(fileId)
+        const deleteResponse = await fetch(`/api/v2/resources/${resource.id}/files/${fileId}`, {
+          method: 'DELETE',
+        })
+        if (!deleteResponse.ok) {
+          const error = await deleteResponse.json()
+          throw new Error(error.error || 'Failed to delete file')
+        }
       }
 
       // Upload new files
@@ -170,31 +174,24 @@ export default function EditResourceDialogEnhanced({ resource, onSuccess }: Edit
         }
       }
 
-      // Get current user
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('User not authenticated')
-
-      const { data: userProfile } = await supabase
-        .from('users')
-        .select('email, organization_name')
-        .eq('id', user.id)
-        .single()
-
-      if (!userProfile) throw new Error('User profile not found')
-
-      await updateResource({
-        resourceId: resource.id,
-        title,
-        description,
-        resourceType,
-        files: newUploadedFiles.length > 0 ? newUploadedFiles : undefined,
-        externalLink: externalLink || undefined,
-        userId: user.id,
-        userEmail: userProfile.email,
-        organization: userProfile.organization_name || resource.organization,
-        changeNotes: changeNotes || undefined
+      // Update resource via API
+      const response = await fetch(`/api/v2/resources/${resource.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          description,
+          resourceType,
+          files: newUploadedFiles.length > 0 ? newUploadedFiles : undefined,
+          externalLink: externalLink || undefined,
+          changeNotes: changeNotes || undefined
+        })
       })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to update resource')
+      }
 
       toast.success("Resource updated successfully!")
       setOpen(false)
