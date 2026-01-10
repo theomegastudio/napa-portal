@@ -13,7 +13,7 @@ const db = drizzle({ client: sql });
 
 // NAPA member organizations
 const ORGANIZATIONS = [
-  'NAPA', // Must be first - required for NAPA admins
+  'National APIDA Panhellenic Association', // Must be first - required for NAPA admins (napahq.org)
   'alpha Kappa Delta Phi International Sorority, Inc.',
   'Alpha Phi Gamma National Sorority, Inc.',
   'Alpha Sigma Rho National Sorority, Inc.',
@@ -63,7 +63,7 @@ async function seed() {
       email: 'admin@napavalleyregister.com',
       name: 'NAPA Admin',
       password: adminPassword,
-      organizationName: 'NAPA',
+      organizationName: 'National APIDA Panhellenic Association',
       isAdmin: true,
       approvalStatus: 'approved',
       emailVerified: new Date(),
