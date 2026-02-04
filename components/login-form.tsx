@@ -47,15 +47,16 @@ export function LoginForm({
       const result = await signIn.email({
         email,
         password,
-        callbackURL: callbackUrl,
       })
 
       if (result.error) {
         setError(result.error.message || "Invalid email or password")
       } else {
         toast.success("Signed in successfully!")
-        router.push(callbackUrl)
-        router.refresh()
+        // Use window.location for a full page load to ensure the session cookie
+        // is properly established before the destination page checks auth state.
+        // router.push can navigate before the cookie is set, causing a redirect loop.
+        window.location.href = callbackUrl
       }
     } catch (err) {
       setError("An error occurred. Please try again.")

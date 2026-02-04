@@ -49,6 +49,14 @@ export const auth = betterAuth({
     return secret;
   })(),
 
+  // Trusted origins for CSRF protection - required for BetterAuth v1.x
+  // Without this, BetterAuth rejects session/sign-in requests from the production domain
+  trustedOrigins: [
+    process.env.BETTER_AUTH_URL || 'http://localhost:3000',
+    process.env.AUTH_URL || '',
+    process.env.NEXT_PUBLIC_APP_URL || '',
+  ].filter(Boolean),
+
   database: drizzleAdapter(db, {
     provider: 'pg',
     schema: {
