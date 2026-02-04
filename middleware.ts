@@ -17,7 +17,7 @@ const publicRoutes = [
   '/api/v2/organizations',
 ];
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow public routes
@@ -36,7 +36,10 @@ export function proxy(request: NextRequest) {
   }
 
   // Check for BetterAuth session cookie
-  const sessionCookie = request.cookies.get('better-auth.session_token');
+  // In production, useSecureCookies prefixes the cookie with __Secure-
+  const sessionCookie =
+    request.cookies.get('__Secure-better-auth.session_token') ||
+    request.cookies.get('better-auth.session_token');
 
   if (!sessionCookie) {
     const loginUrl = new URL('/login', request.url);
