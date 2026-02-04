@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { headers } from 'next/headers';
 import { auth, hashPassword, verifyPassword } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { users } from '@/lib/db/schema';
+import { users, accounts } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 export async function PUT(request: NextRequest) {
   try {
-    const session = await auth();
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
 
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -30,25 +33,26 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Get user from database to check current password
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, session.user.id),
+    // Get user's credential account from database to check current password
+    // BetterAuth stores passwords in the accounts table
+    const account = await db.query.accounts.findFirst({
+      where: eq(accounts.userId, session.user.id),
     });
 
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    if (!account) {
+      return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
-    // Check if user has a password (might be magic link only user)
-    if (!user.password) {
+    // Check if user has a password (might be OAuth only user)
+    if (!account.password) {
       return NextResponse.json(
-        { error: 'No password set for this account. You may have signed up with a magic link.' },
+        { error: 'No password set for this account.' },
         { status: 400 }
       );
     }
 
     // Verify current password
-    const isCurrentPasswordValid = await verifyPassword(currentPassword, user.password);
+    const isCurrentPasswordValid = await verifyPassword(currentPassword, account.password);
     if (!isCurrentPasswordValid) {
       return NextResponse.json(
         { error: 'Current password is incorrect' },
@@ -59,14 +63,14 @@ export async function PUT(request: NextRequest) {
     // Hash new password
     const hashedNewPassword = await hashPassword(newPassword);
 
-    // Update password
+    // Update password in accounts table
     await db
-      .update(users)
+      .update(accounts)
       .set({
         password: hashedNewPassword,
         updatedAt: new Date(),
       })
-      .where(eq(users.id, session.user.id));
+      .where(eq(accounts.userId, session.user.id));
 
     return NextResponse.json({ success: true, message: 'Password updated successfully' });
   } catch (error) {

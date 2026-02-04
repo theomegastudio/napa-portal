@@ -76,7 +76,7 @@ export default function ManageMembers({ organizationName }: ManageMembersProps) 
         const error = await response.json()
         throw new Error(error.error || 'Failed to invite member')
       }
-      toast.success("Invitation sent! They'll receive a magic link via email.")
+      toast.success("Invitation sent! They'll receive an email to get started.")
       setEmail("")
       setIsAdmin(false)
       fetchMembers()
@@ -154,7 +154,7 @@ export default function ManageMembers({ organizationName }: ManageMembersProps) 
                   className="flex items-center justify-between p-3 rounded-lg border"
                 >
                   <p className="text-sm font-medium">{member.email}</p>
-                  {member.is_admin && (
+                  {member.isAdmin && (
                     <Badge variant="secondary" className="text-xs">
                       <Shield className="mr-1 h-3 w-3" />
                       Admin

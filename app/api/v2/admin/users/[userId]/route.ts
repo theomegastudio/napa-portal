@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updateUser, deleteUser } from '@/lib/services-drizzle/users';
+import { updateUser, deleteUser, banUser, unbanUser } from '@/lib/services-drizzle/users';
 
 export async function PATCH(
   request: NextRequest,
@@ -8,8 +8,20 @@ export async function PATCH(
   try {
     const { userId } = await params;
     const body = await request.json();
-    const { email, organizationName, isAdmin } = body;
+    const { email, organizationName, isAdmin, action, banReason } = body;
 
+    // Handle ban/unban actions
+    if (action === 'ban') {
+      await banUser(userId, banReason);
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'unban') {
+      await unbanUser(userId);
+      return NextResponse.json({ success: true });
+    }
+
+    // Regular user update
     await updateUser(userId, {
       email,
       organizationName,
@@ -21,6 +33,9 @@ export async function PATCH(
     console.error('PATCH user error:', error);
     if (error instanceof Error && error.message.includes('Unauthorized')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (error instanceof Error && (error.message.includes('Cannot ban yourself') || error.message.includes('Cannot delete yourself'))) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
     return NextResponse.json(
       { error: 'Failed to update user' },

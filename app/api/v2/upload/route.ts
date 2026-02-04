@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
 import {
   validateFileServer,
@@ -13,8 +14,10 @@ const STORAGE_PROVIDER =
 
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication using Auth.js
-    const session = await auth();
+    // Check authentication using BetterAuth
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
 
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

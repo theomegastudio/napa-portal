@@ -7,7 +7,6 @@ import {
   integer,
   jsonb,
   pgEnum,
-  primaryKey,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
@@ -48,29 +47,35 @@ export const organizations = pgTable('organizations', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-// Users table
+// Users table - Compatible with BetterAuth
 export const users = pgTable('users', {
-  id: uuid('id').primaryKey(), // Will match Auth.js user ID
+  id: text('id').primaryKey(), // BetterAuth uses text IDs
   email: text('email').notNull().unique(),
   name: text('name'),
-  password: text('password'), // Hashed password for credentials auth
-  emailVerified: timestamp('email_verified', { withTimezone: true }),
+  emailVerified: boolean('email_verified').default(false).notNull(),
   image: text('image'),
+
+  // BetterAuth admin plugin fields
+  role: text('role').default('user').notNull(), // 'user', 'admin', 'napaAdmin'
+  banned: boolean('banned').default(false),
+  banReason: text('ban_reason'),
+  banExpires: timestamp('ban_expires', { withTimezone: true }),
+
+  // Custom NAPA fields
   organizationName: text('organization_name').references(
     () => organizations.organizationName
   ),
   isAdmin: boolean('is_admin').default(false).notNull(),
+
   // Approval workflow fields
   approvalStatus: approvalStatusEnum('approval_status').default('pending').notNull(),
-  approvedBy: uuid('approved_by'),
+  approvedBy: text('approved_by'),
   approvedAt: timestamp('approved_at', { withTimezone: true }),
   rejectionReason: text('rejection_reason'),
-  // OTP verification fields
-  otpCode: text('otp_code'), // Hashed OTP code
-  otpExpiresAt: timestamp('otp_expires_at', { withTimezone: true }),
-  otpAttempts: integer('otp_attempts').default(0).notNull(),
-  otpLastRequestedAt: timestamp('otp_last_requested_at', { withTimezone: true }),
+
+  // OTP verification tracking (60-day validity)
   lastOtpVerifiedAt: timestamp('last_otp_verified_at', { withTimezone: true }),
+
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -105,7 +110,7 @@ export const resourceFiles = pgTable('resource_files', {
 // Audit logs table
 export const auditLogs = pgTable('audit_logs', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull(),
+  userId: text('user_id').notNull(),
   userEmail: text('user_email').notNull(),
   organization: text('organization').notNull(),
   action: auditActionEnum('action').notNull(),
@@ -128,7 +133,7 @@ export const resourceVersions = pgTable('resource_versions', {
   resourceType: text('resource_type').notNull(),
   externalLink: text('external_link'),
   updatedBy: text('updated_by').notNull(),
-  updatedByUserId: uuid('updated_by_user_id').notNull(),
+  updatedByUserId: text('updated_by_user_id').notNull(),
   changeNotes: text('change_notes'),
   metadata: jsonb('metadata').default({}).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -145,7 +150,7 @@ export const organizationDomainWhitelist = pgTable('organization_domain_whitelis
     .notNull()
     .references(() => organizations.organizationName, { onDelete: 'cascade' }),
   domain: text('domain').notNull(), // e.g., 'example.edu'
-  createdBy: uuid('created_by')
+  createdBy: text('created_by')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -154,10 +159,10 @@ export const organizationDomainWhitelist = pgTable('organization_domain_whitelis
 // Approval notifications for admins
 export const approvalNotifications = pgTable('approval_notifications', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id')
+  userId: text('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
-  recipientId: uuid('recipient_id')
+  recipientId: text('recipient_id')
     .notNull()
     .references(() => users.id),
   type: text('type').notNull(), // 'pending_approval', 'approved', 'rejected'
@@ -166,48 +171,52 @@ export const approvalNotifications = pgTable('approval_notifications', {
 });
 
 // ============================================
-// Auth.js Required Tables
+// BetterAuth Required Tables
 // ============================================
 
-export const accounts = pgTable(
-  'accounts',
-  {
-    userId: uuid('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    type: text('type').notNull(),
-    provider: text('provider').notNull(),
-    providerAccountId: text('provider_account_id').notNull(),
-    refresh_token: text('refresh_token'),
-    access_token: text('access_token'),
-    expires_at: integer('expires_at'),
-    token_type: text('token_type'),
-    scope: text('scope'),
-    id_token: text('id_token'),
-    session_state: text('session_state'),
-  },
-  (account) => [
-    primaryKey({ columns: [account.provider, account.providerAccountId] }),
-  ]
-);
-
+// Sessions table - BetterAuth format
 export const sessions = pgTable('sessions', {
-  sessionToken: text('session_token').primaryKey(),
-  userId: uuid('user_id')
+  id: text('id').primaryKey(),
+  userId: text('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
-  expires: timestamp('expires', { withTimezone: true }).notNull(),
+  token: text('token').notNull().unique(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  impersonatedBy: text('impersonated_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
-export const verificationTokens = pgTable(
-  'verification_tokens',
-  {
-    identifier: text('identifier').notNull(),
-    token: text('token').notNull(),
-    expires: timestamp('expires', { withTimezone: true }).notNull(),
-  },
-  (vt) => [primaryKey({ columns: [vt.identifier, vt.token] })]
-);
+// Accounts table - BetterAuth format
+export const accounts = pgTable('accounts', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  accountId: text('account_id').notNull(),
+  providerId: text('provider_id').notNull(),
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token'),
+  accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }),
+  refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }),
+  scope: text('scope'),
+  idToken: text('id_token'),
+  password: text('password'), // For credential accounts
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
+
+// Verification table - BetterAuth format (replaces verification_tokens)
+export const verifications = pgTable('verifications', {
+  id: text('id').primaryKey(),
+  identifier: text('identifier').notNull(),
+  value: text('value').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
 
 // ============================================
 // Relations
@@ -220,10 +229,6 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   }),
   accounts: many(accounts),
   sessions: many(sessions),
-  approvedByUser: one(users, {
-    fields: [users.approvedBy],
-    references: [users.id],
-  }),
   receivedNotifications: many(approvalNotifications),
 }));
 
@@ -321,5 +326,14 @@ export type NewOrganizationDomainWhitelist = typeof organizationDomainWhitelist.
 
 export type ApprovalNotification = typeof approvalNotifications.$inferSelect;
 export type NewApprovalNotification = typeof approvalNotifications.$inferInsert;
+
+export type Session = typeof sessions.$inferSelect;
+export type NewSession = typeof sessions.$inferInsert;
+
+export type Account = typeof accounts.$inferSelect;
+export type NewAccount = typeof accounts.$inferInsert;
+
+export type Verification = typeof verifications.$inferSelect;
+export type NewVerification = typeof verifications.$inferInsert;
 
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';

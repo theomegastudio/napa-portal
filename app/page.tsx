@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { useSession } from "next-auth/react"
+import { useSession } from "@/lib/auth-client"
+import { isOTPVerificationRequired } from "@/lib/auth-client"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -37,6 +38,19 @@ interface Resource {
   files: ResourceFile[]
 }
 
+// Extend session user type for custom fields
+interface ExtendedUser {
+  id?: string
+  email?: string
+  name?: string
+  image?: string
+  organizationName?: string
+  isAdmin?: boolean
+  role?: string
+  approvalStatus?: string
+  lastOtpVerifiedAt?: string | null
+}
+
 // Transform to old format for components
 function transformResource(r: Resource) {
   return {
@@ -62,20 +76,24 @@ function transformResource(r: Resource) {
 
 export default function App() {
   const router = useRouter()
-  const { data: session, status } = useSession()
+  const { data: session, isPending: isLoading } = useSession()
 
   const [resources, setResources] = useState<Resource[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isResourcesLoading, setIsResourcesLoading] = useState(true)
   const [isInitialLoad, setIsInitialLoad] = useState(true)
   const [searchText, setSearchText] = useState("")
   const [resourceType, setResourceType] = useState("all")
   const [needsOrgSetup, setNeedsOrgSetup] = useState(false)
 
+  // Cast user to extended type
+  const user = session?.user as ExtendedUser | undefined
+  const userIsNapaAdmin = user?.role === 'napaAdmin'
+
   const fetchResources = async (search?: string, type?: string, showLoading = true) => {
     try {
       // Only show skeleton on initial load, not on filter changes
       if (showLoading && isInitialLoad) {
-        setIsLoading(true)
+        setIsResourcesLoading(true)
       }
       const params = new URLSearchParams()
       if (search) params.set('searchText', search)
@@ -97,44 +115,54 @@ export default function App() {
       toast.error("Failed to load resources")
       console.error(error)
     } finally {
-      setIsLoading(false)
+      setIsResourcesLoading(false)
       setIsInitialLoad(false)
     }
   }
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
+    if (isLoading) return
+
+    if (!user) {
       router.push('/login')
-    } else if (status === 'authenticated') {
-      // Check approval status first
-      if (session?.user?.approvalStatus === 'pending') {
-        router.push('/pending-approval')
-        return
-      }
-      if (session?.user?.approvalStatus === 'rejected') {
-        router.push('/account-rejected')
-        return
-      }
+      return
+    }
 
-      // Check if email verification is required
-      if (session?.user?.emailVerificationRequired) {
-        router.push('/verify-email')
-        return
-      }
+    // Check approval status first
+    if (user.approvalStatus === 'pending') {
+      router.push('/pending-approval')
+      return
+    }
+    if (user.approvalStatus === 'rejected') {
+      router.push('/account-rejected')
+      return
+    }
 
-      // Check if user needs org setup
-      if (!session?.user?.organizationName) {
-        setNeedsOrgSetup(true)
-        setIsLoading(false)
-      } else {
-        setNeedsOrgSetup(false)
-        // Only fetch on initial load - subsequent fetches handled by filter effect
-        if (isInitialLoad) {
-          fetchResources(searchText, resourceType, true)
-        }
+    // Check if email verification is required (60-day OTP validity)
+    const needsVerification = isOTPVerificationRequired({
+      id: user.id || '',
+      email: user.email || '',
+      role: 'user',
+      lastOtpVerifiedAt: user.lastOtpVerifiedAt ? new Date(user.lastOtpVerifiedAt) : null,
+    })
+    if (needsVerification) {
+      router.push('/verify-email')
+      return
+    }
+
+    // Check if user needs org setup
+    if (!user.organizationName) {
+      setNeedsOrgSetup(true)
+      setIsResourcesLoading(false)
+    } else {
+      setNeedsOrgSetup(false)
+      // Only fetch on initial load - subsequent fetches handled by filter effect
+      if (isInitialLoad) {
+        fetchResources(searchText, resourceType, true)
       }
     }
-  }, [status, session, router])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, user, router])
 
   const debouncedFetch = useDebouncedCallback(
     (search: string, type: string) => {
@@ -145,9 +173,10 @@ export default function App() {
 
   // Handle search/filter changes - but skip initial render
   useEffect(() => {
-    if (session?.user && !needsOrgSetup && !isInitialLoad) {
+    if (user && !needsOrgSetup && !isInitialLoad) {
       debouncedFetch(searchText, resourceType)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchText, resourceType])
 
   const handleDelete = async (id: string) => {
@@ -174,7 +203,7 @@ export default function App() {
     fetchResources(searchText, resourceType, false)
   }
 
-  if (status === 'loading') {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -185,11 +214,9 @@ export default function App() {
     )
   }
 
-  if (!session?.user) {
+  if (!user) {
     return null
   }
-
-  const user = session.user
 
   if (needsOrgSetup) {
     return (
@@ -204,7 +231,17 @@ export default function App() {
 
   return (
     <div className="flex flex-col min-h-screen bg-muted">
-      <AppHeader user={user} variant="main" />
+      <AppHeader
+        user={{
+          name: user.name,
+          email: user.email,
+          image: user.image,
+          organizationName: user.organizationName,
+          isAdmin: user.isAdmin,
+          isNapaAdmin: userIsNapaAdmin,
+        }}
+        variant="main"
+      />
 
       {/* Main Content */}
       <main className="flex-1 container mx-auto px-4 py-8">
@@ -243,7 +280,7 @@ export default function App() {
         </div>
 
         {/* Resources Grid */}
-        {isLoading ? (
+        {isResourcesLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <Skeleton key={i} className="h-64" />
@@ -269,8 +306,8 @@ export default function App() {
                 onUpdate={handleRefresh}
                 canEdit={
                   resource.uploadedBy === user.email ||
-                  user.isNapaAdmin ||
-                  (user.isAdmin && user.organizationName === resource.organization)
+                  userIsNapaAdmin ||
+                  (user.isAdmin === true && user.organizationName === resource.organization)
                 }
               />
             ))}

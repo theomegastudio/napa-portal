@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { auditLogs, type AuditLog, type NewAuditLog } from '@/lib/db/schema';
 import { eq, and, gte, lte, desc, sql, count } from 'drizzle-orm';
-import { requireAuth } from '@/lib/auth-helpers';
+import { requireApprovedAuth } from '@/lib/auth-helpers';
 
 export type { AuditLog };
 export type AuditAction = 'created' | 'updated' | 'deleted' | 'downloaded' | 'viewed';
@@ -49,7 +49,7 @@ export async function getAuditLogs(params?: {
   limit?: number;
   offset?: number;
 }): Promise<{ logs: AuditLog[]; total: number }> {
-  const user = await requireAuth();
+  const user = await requireApprovedAuth();
 
   // Build conditions
   const conditions = [];
@@ -107,7 +107,7 @@ export async function getAuditLogStats(params?: {
   endDate?: string;
   organization?: string;
 }) {
-  const user = await requireAuth();
+  const user = await requireApprovedAuth();
 
   // Build conditions
   const conditions = [];

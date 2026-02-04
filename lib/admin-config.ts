@@ -62,7 +62,8 @@ export function hasRequiredRole(
   if (requiredRole === 'napaAdmin') {
     return isNapaAdmin
   }
-  return isAdmin
+  // NAPA admins have access to all admin pages
+  return isAdmin || isNapaAdmin
 }
 
 // Get pages accessible by user

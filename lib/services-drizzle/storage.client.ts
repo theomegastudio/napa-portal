@@ -25,7 +25,7 @@ export async function uploadFile(
     formData.append('customFilename', sanitizedName);
   }
 
-  const response = await fetch('/api/upload', {
+  const response = await fetch('/api/v2/upload', {
     method: 'POST',
     body: formData,
   });

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useSession } from '@/lib/auth-client'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -40,11 +40,20 @@ interface WhitelistedDomain {
   createdAt: string
 }
 
+// Extend session user type
+interface ExtendedUser {
+  isAdmin?: boolean
+  organizationName?: string
+}
+
 export default function DomainWhitelistPage() {
-  const { data: session, status } = useSession()
+  const { data: session, isPending: isSessionLoading } = useSession()
   const router = useRouter()
   const [domains, setDomains] = useState<WhitelistedDomain[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Cast user to extended type
+  const user = session?.user as ExtendedUser | undefined
 
   // Add domain state
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -57,15 +66,16 @@ export default function DomainWhitelistPage() {
   const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
-    if (status === 'loading') return
+    if (isSessionLoading) return
 
-    if (!session?.user?.isAdmin) {
+    if (!user?.isAdmin) {
       router.push('/')
       return
     }
 
     fetchDomains()
-  }, [session, status, router])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isSessionLoading, router])
 
   const fetchDomains = async () => {
     try {
@@ -151,7 +161,7 @@ export default function DomainWhitelistPage() {
     setDeleteDialogOpen(true)
   }
 
-  if (status === 'loading' || loading) {
+  if (isSessionLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -184,7 +194,7 @@ export default function DomainWhitelistPage() {
             <div className="flex-1">
               <CardTitle>Whitelisted Domains</CardTitle>
               <CardDescription>
-                {domains.length} {domains.length === 1 ? 'domain' : 'domains'} for {session?.user?.organizationName}
+                {domains.length} {domains.length === 1 ? 'domain' : 'domains'} for {user?.organizationName}
               </CardDescription>
             </div>
             <Button onClick={() => setAddDialogOpen(true)}>

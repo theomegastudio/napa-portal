@@ -117,7 +117,7 @@ export default function OrganizationMembersClient({ organizationName, currentUse
         const error = await response.json()
         throw new Error(error.error || 'Failed to invite member')
       }
-      toast.success('Invitation sent! They\'ll receive a magic link via email.')
+      toast.success('Invitation sent! They\'ll receive an email to get started.')
       setInviteDialogOpen(false)
       setInviteEmail('')
       setInviteAsAdmin(false)
@@ -143,7 +143,7 @@ export default function OrganizationMembersClient({ organizationName, currentUse
       const response = await fetch(`/api/v2/members/${editingMember.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isAdmin: editingMember.is_admin })
+        body: JSON.stringify({ isAdmin: editingMember.isAdmin })
       })
 
       if (!response.ok) {
@@ -267,7 +267,7 @@ export default function OrganizationMembersClient({ organizationName, currentUse
                         </div>
                       </TableCell>
                       <TableCell>
-                        {member.is_admin ? (
+                        {member.isAdmin ? (
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
                             <Shield className="h-3 w-3 mr-1" />
                             Admin
@@ -279,7 +279,7 @@ export default function OrganizationMembersClient({ organizationName, currentUse
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {member.created_at ? new Date(member.created_at).toLocaleDateString() : 'N/A'}
+                        {member.createdAt ? new Date(member.createdAt).toLocaleDateString() : 'N/A'}
                       </TableCell>
                       <TableCell className="text-right">
                         {member.id !== currentUserId ? (
@@ -387,9 +387,9 @@ export default function OrganizationMembersClient({ organizationName, currentUse
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="edit-admin"
-                  checked={editingMember.is_admin}
+                  checked={editingMember.isAdmin}
                   onCheckedChange={(checked) =>
-                    setEditingMember({ ...editingMember, is_admin: checked as boolean })
+                    setEditingMember({ ...editingMember, isAdmin: checked as boolean })
                   }
                 />
                 <Label htmlFor="edit-admin" className="text-sm cursor-pointer font-normal">

@@ -39,7 +39,7 @@ export interface Organization {
   export interface Member {
     id: string
     email: string
-    organization_name: string | null
-    is_admin: boolean
-    created_at: string
+    organizationName: string | null
+    isAdmin: boolean
+    createdAt: string
   }

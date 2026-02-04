@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from "next/navigation"
-import { signOut } from "next-auth/react"
+import { signOut } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import UserAvatar from "@/components/UserAvatar"
 import NapaPortalLogo from "@/components/NapaPortalLogo"
-import { adminPages, getAccessiblePages } from "@/lib/admin-config"
+import { getAccessiblePages } from "@/lib/admin-config"
 import {
   Shield,
   LogOut,
@@ -50,7 +50,13 @@ export default function AppHeader({
   const router = useRouter()
 
   const handleLogout = async () => {
-    await signOut({ callbackUrl: '/login' })
+    await signOut({
+      fetchOptions: {
+        onSuccess: () => {
+          router.push('/login')
+        },
+      },
+    })
   }
 
   const isAdmin = user.isAdmin ?? false
@@ -95,7 +101,7 @@ export default function AppHeader({
 
           <div className="flex items-center gap-3">
             {/* Admin dropdown - only show if user has admin privileges */}
-            {isAdmin && (
+            {(isAdmin || isNapaAdmin) && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="gap-2">

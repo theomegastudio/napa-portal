@@ -3,7 +3,25 @@ import { LoginForm } from "@/components/login-form"
 import NapaAuthLogo from "@/components/NapaAuthLogo"
 import { Loader2 } from "lucide-react"
 
-export default function LoginPage() {
+interface LoginPageProps {
+  searchParams: Promise<{ callbackUrl?: string }>
+}
+
+// Sanitize callbackUrl to prevent open redirect attacks
+function sanitizeCallbackUrl(url: string | undefined): string {
+  if (!url) return "/";
+  // Only allow relative paths (starting with /)
+  // Reject absolute URLs, protocol-relative URLs, and other schemes
+  if (url.startsWith("/") && !url.startsWith("//")) {
+    return url;
+  }
+  return "/";
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const params = await searchParams
+  const callbackUrl = sanitizeCallbackUrl(params.callbackUrl)
+
   return (
     <div className="grid min-h-svh lg:grid-cols-2">
       <div className="flex flex-col gap-4 p-6 md:p-10">
@@ -19,7 +37,7 @@ export default function LoginPage() {
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             }>
-              <LoginForm />
+              <LoginForm callbackUrl={callbackUrl} />
             </Suspense>
           </div>
         </div>

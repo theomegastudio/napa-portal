@@ -43,8 +43,7 @@ export async function getOrgAdminsForOrg(organizationName: string): Promise<User
 export async function getNapaAdmins(): Promise<User[]> {
   const napaAdmins = await db.query.users.findMany({
     where: and(
-      eq(users.organizationName, 'National APIDA Panhellenic Association'),
-      eq(users.isAdmin, true),
+      eq(users.role, 'napaAdmin'),
       eq(users.approvalStatus, 'approved')
     ),
   });
@@ -76,7 +75,7 @@ export async function determineApprover(
 export async function getPendingApprovals(): Promise<PendingUser[]> {
   const currentUser = await requireAuth();
 
-  if (!currentUser.isAdmin) {
+  if (!currentUser.isAdmin && !currentUser.isNapaAdmin) {
     throw new Error('Unauthorized: Admin access required');
   }
 
@@ -125,7 +124,7 @@ export async function approveUser(
 ): Promise<void> {
   const currentUser = await requireAuth();
 
-  if (!currentUser.isAdmin) {
+  if (!currentUser.isAdmin && !currentUser.isNapaAdmin) {
     throw new Error('Unauthorized: Admin access required');
   }
 
@@ -184,7 +183,7 @@ export async function rejectUser(
 ): Promise<void> {
   const currentUser = await requireAuth();
 
-  if (!currentUser.isAdmin) {
+  if (!currentUser.isAdmin && !currentUser.isNapaAdmin) {
     throw new Error('Unauthorized: Admin access required');
   }
 

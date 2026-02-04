@@ -1,8 +1,8 @@
 import { db } from '@/lib/db';
 import { users, type User } from '@/lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
-import { requireAuth } from '@/lib/auth-helpers';
-import { signIn } from '@/lib/auth';
+import { requireApprovedAuth } from '@/lib/auth-helpers';
+import { sendInvitationEmail } from '@/lib/services-drizzle/email';
 
 export type Member = Pick<
   User,
@@ -15,7 +15,7 @@ export type Member = Pick<
 export async function getOrgMembers(
   organizationName: string
 ): Promise<Member[]> {
-  const user = await requireAuth();
+  const user = await requireApprovedAuth();
 
   // Verify access - must be in the org or NAPA admin
   if (!user.isNapaAdmin && user.organizationName !== organizationName) {
@@ -38,14 +38,14 @@ export async function getOrgMembers(
 }
 
 /**
- * Invite a user to an organization via magic link
+ * Invite a user to an organization
  */
 export async function inviteUser(
   email: string,
   organizationName: string,
   isAdmin: boolean
 ) {
-  const currentUser = await requireAuth();
+  const currentUser = await requireApprovedAuth();
 
   // Verify permission - must be org admin or NAPA admin
   if (!currentUser.isNapaAdmin && !currentUser.isAdmin) {
@@ -70,28 +70,43 @@ export async function inviteUser(
       throw new Error('User is already a member of this organization');
     }
 
-    // Update existing user's organization
+    // Prevent silently reassigning users from other organizations
+    if (existingUser.organizationName) {
+      throw new Error(
+        'This user already belongs to another organization. They must be removed from their current organization first.'
+      );
+    }
+
+    // Only update if user has no org assigned (e.g. pre-created without org)
     await db
       .update(users)
       .set({
         organizationName,
         isAdmin,
+        approvalStatus: 'approved',
+        approvedBy: currentUser.id,
+        approvedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(users.id, existingUser.id));
 
+    // Send invitation email
+    try {
+      await sendInvitationEmail({
+        email: email.toLowerCase(),
+        organizationName,
+        invitedByEmail: currentUser.email,
+        isAdmin,
+      });
+    } catch (emailError) {
+      console.error('Failed to send invitation email:', emailError);
+      // Don't fail the invite if email fails
+    }
+
     return { status: 'updated', userId: existingUser.id };
   }
 
-  // For new users, we'll send them a magic link
-  // When they sign in for the first time, Auth.js will create their user
-  // We'll need to handle setting their org in a different way
-
-  // For now, we trigger a sign-in which sends the magic link
-  // The user will need to select their org after signing in
-  // OR we can pre-create the user record
-
-  // Pre-create user with pending status
+  // Pre-create user with approved status (admin invited them)
   const [newUser] = await db
     .insert(users)
     .values({
@@ -99,11 +114,24 @@ export async function inviteUser(
       email: email.toLowerCase(),
       organizationName,
       isAdmin,
+      approvalStatus: 'approved',
+      approvedBy: currentUser.id,
+      approvedAt: new Date(),
     })
     .returning();
 
-  // Note: In production, you'd send a custom invitation email here
-  // For now, the user will use the standard sign-in flow
+  // Send invitation email
+  try {
+    await sendInvitationEmail({
+      email: email.toLowerCase(),
+      organizationName,
+      invitedByEmail: currentUser.email,
+      isAdmin,
+    });
+  } catch (emailError) {
+    console.error('Failed to send invitation email:', emailError);
+    // Don't fail the invite if email fails
+  }
 
   return { status: 'invited', userId: newUser.id };
 }
@@ -112,7 +140,7 @@ export async function inviteUser(
  * Update a member's admin status
  */
 export async function updateMemberRole(memberId: string, isAdmin: boolean) {
-  const currentUser = await requireAuth();
+  const currentUser = await requireApprovedAuth();
 
   // Get the target member
   const member = await db.query.users.findFirst({
@@ -160,7 +188,7 @@ export async function updateMemberRole(memberId: string, isAdmin: boolean) {
  * Remove a member from an organization
  */
 export async function removeMember(memberId: string) {
-  const currentUser = await requireAuth();
+  const currentUser = await requireApprovedAuth();
 
   // Get the target member
   const member = await db.query.users.findFirst({

@@ -18,9 +18,10 @@
 NAPA Resource Hub is a multi-tenant SaaS platform for managing organizational resources. It enables organizations within the National APIDA Panhellenic Association network to upload, share, and manage policies, procedures, documents, and vendor information.
 
 ### Key Capabilities
-- Passwordless email authentication
+- Email/password authentication with Email OTP verification (BetterAuth)
 - Multi-tenant resource isolation by organization
 - Role-based access control (User, Org Admin, NAPA Super Admin)
+- User approval workflow
 - File storage and management
 - Full-text search and filtering
 - Member invitation system
@@ -37,9 +38,9 @@ NAPA Resource Hub is a multi-tenant SaaS platform for managing organizational re
 - **Notifications:** Sonner
 
 ### Backend
-- **Authentication:** Supabase Auth (Magic Links)
-- **Database:** Supabase (PostgreSQL)
-- **Storage:** Supabase Storage
+- **Authentication:** BetterAuth (Email/Password + Email OTP)
+- **Database:** Neon PostgreSQL with Drizzle ORM
+- **Storage:** Local filesystem (Cloudflare R2 planned)
 - **API:** Next.js Route Handlers
 
 ### Development Tools
@@ -52,7 +53,7 @@ NAPA Resource Hub is a multi-tenant SaaS platform for managing organizational re
 ### Prerequisites
 - Node.js 18 or higher
 - npm, yarn, pnpm, or bun
-- Supabase account
+- Neon PostgreSQL database
 
 ### Installation
 
@@ -65,23 +66,21 @@ NAPA Resource Hub is a multi-tenant SaaS platform for managing organizational re
 2. **Install dependencies**
    ```bash
    npm install
-   # or
-   yarn install
-   # or
-   pnpm install
    ```
 
 3. **Set up environment variables**
 
-   Create a `.env.local` file in the root directory:
-   ```env
-   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   Copy `.env.local.example` to `.env.local` and fill in the values:
+   ```bash
+   cp .env.local.example .env.local
    ```
 
-4. **Set up Supabase**
+4. **Push database schema and seed**
 
-   See [Database Schema](#database-schema) section for table creation and RLS policies.
+   ```bash
+   npx drizzle-kit push
+   npx tsx lib/db/seed.ts
+   ```
 
 5. **Run the development server**
    ```bash

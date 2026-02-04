@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { signIn } from "next-auth/react"
+import { signIn } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -10,11 +10,10 @@ import {
   FieldDescription,
   FieldGroup,
   FieldLabel,
-  FieldSeparator,
   FieldError,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Loader2, Mail } from "lucide-react"
+import { Loader2, Eye, EyeOff } from "lucide-react"
 import { toast } from "sonner"
 
 interface LoginFormProps extends React.ComponentProps<"form"> {
@@ -29,10 +28,9 @@ export function LoginForm({
   const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [isMagicLinkLoading, setIsMagicLinkLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [magicLinkSent, setMagicLinkSent] = useState(false)
 
   const handleCredentialsLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -46,16 +44,15 @@ export function LoginForm({
     setIsLoading(true)
 
     try {
-      const result = await signIn("credentials", {
+      const result = await signIn.email({
         email,
         password,
-        redirect: false,
-        callbackUrl,
+        callbackURL: callbackUrl,
       })
 
-      if (result?.error) {
-        setError("Invalid email or password")
-      } else if (result?.ok) {
+      if (result.error) {
+        setError(result.error.message || "Invalid email or password")
+      } else {
         toast.success("Signed in successfully!")
         router.push(callbackUrl)
         router.refresh()
@@ -66,62 +63,6 @@ export function LoginForm({
     } finally {
       setIsLoading(false)
     }
-  }
-
-  const handleMagicLink = async () => {
-    if (!email) {
-      setError("Please enter your email to receive a magic link")
-      return
-    }
-
-    setError(null)
-    setIsMagicLinkLoading(true)
-
-    try {
-      const result = await signIn("nodemailer", {
-        email,
-        redirect: false,
-        callbackUrl,
-      })
-
-      if (result?.error) {
-        setError("Failed to send magic link. Please try again.")
-      } else {
-        setMagicLinkSent(true)
-        toast.success("Check your email for the magic link!")
-      }
-    } catch (err) {
-      setError("An error occurred. Please try again.")
-      console.error(err)
-    } finally {
-      setIsMagicLinkLoading(false)
-    }
-  }
-
-  if (magicLinkSent) {
-    return (
-      <div className={cn("flex flex-col gap-6", className)}>
-        <div className="flex flex-col items-center gap-4 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-            <Mail className="h-6 w-6 text-primary" />
-          </div>
-          <h1 className="text-2xl font-bold">Check your email</h1>
-          <p className="text-muted-foreground text-sm text-balance">
-            We sent a magic link to <strong>{email}</strong>
-          </p>
-          <p className="text-muted-foreground text-sm">
-            Click the link in the email to sign in. You can close this page.
-          </p>
-          <Button
-            variant="outline"
-            className="mt-4"
-            onClick={() => setMagicLinkSent(false)}
-          >
-            Back to login
-          </Button>
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -150,7 +91,7 @@ export function LoginForm({
             placeholder="chair@napahq.org"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            disabled={isLoading || isMagicLinkLoading}
+            disabled={isLoading}
             required
           />
         </Field>
@@ -165,52 +106,54 @@ export function LoginForm({
               Forgot password?
             </a>
           </div>
-          <Input
-            id="password"
-            type="password"
-            placeholder="Enter your password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={isLoading || isMagicLinkLoading}
-            required
-          />
+          <div className="relative">
+            <Input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={isLoading}
+              required
+              className="pr-10"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+              onClick={() => setShowPassword(!showPassword)}
+              disabled={isLoading}
+            >
+              {showPassword ? (
+                <EyeOff className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <Eye className="h-4 w-4 text-muted-foreground" />
+              )}
+              <span className="sr-only">
+                {showPassword ? "Hide password" : "Show password"}
+              </span>
+            </Button>
+          </div>
         </Field>
 
         <Field>
           <Button
             type="submit"
             className="w-full"
-            disabled={isLoading || isMagicLinkLoading}
+            disabled={isLoading}
           >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Sign In
           </Button>
         </Field>
 
-        <FieldSeparator>Or continue with</FieldSeparator>
-
-        <Field>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={handleMagicLink}
-            disabled={isLoading || isMagicLinkLoading}
-          >
-            {isMagicLinkLoading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Mail className="mr-2 h-4 w-4" />
-            )}
-            Sign in with Magic Link
-          </Button>
-          <FieldDescription className="text-center">
-            Don&apos;t have an account?{" "}
-            <a href="/signup" className="underline underline-offset-4 text-primary hover:text-primary/80">
-              Sign up
-            </a>
-          </FieldDescription>
-        </Field>
+        <FieldDescription className="text-center">
+          Don&apos;t have an account?{" "}
+          <a href="/signup" className="underline underline-offset-4 text-primary hover:text-primary/80">
+            Sign up
+          </a>
+        </FieldDescription>
       </FieldGroup>
     </form>
   )

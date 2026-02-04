@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useSession } from 'next-auth/react'
+import { useSession } from '@/lib/auth-client'
 import { Bell } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,16 +26,21 @@ interface Notification {
   userOrganization: string | null
 }
 
-export default function NotificationBell() {
-  const { data: session, status } = useSession()
+interface NotificationBellProps {
+  isAdmin?: boolean
+}
+
+export default function NotificationBell({ isAdmin }: NotificationBellProps) {
+  const { data: session, isPending: isLoading } = useSession()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(false)
 
-  const isAdmin = session?.user?.isAdmin
+  // Use passed prop or check session (for backwards compatibility)
+  const userIsAdmin = isAdmin ?? false
 
   const fetchNotifications = useCallback(async () => {
-    if (!isAdmin) return
+    if (!userIsAdmin) return
     setLoading(true)
     try {
       const response = await fetch('/api/v2/notifications?unreadOnly=false')
@@ -49,10 +54,10 @@ export default function NotificationBell() {
     } finally {
       setLoading(false)
     }
-  }, [isAdmin])
+  }, [userIsAdmin])
 
   const fetchUnreadCount = useCallback(async () => {
-    if (!isAdmin) return
+    if (!userIsAdmin) return
     try {
       const response = await fetch('/api/v2/notifications?countOnly=true')
       if (response.ok) {
@@ -62,7 +67,7 @@ export default function NotificationBell() {
     } catch (error) {
       console.error('Failed to fetch notification count:', error)
     }
-  }, [isAdmin])
+  }, [userIsAdmin])
 
   const markAsRead = async (notificationId: string) => {
     try {
@@ -94,15 +99,15 @@ export default function NotificationBell() {
 
   // Fetch on mount and poll every 30 seconds - only when admin
   useEffect(() => {
-    if (status === 'loading' || !isAdmin) return
+    if (isLoading || !userIsAdmin) return
 
     fetchUnreadCount()
     const interval = setInterval(fetchUnreadCount, 30000)
     return () => clearInterval(interval)
-  }, [status, isAdmin, fetchUnreadCount])
+  }, [isLoading, userIsAdmin, fetchUnreadCount])
 
   // Don't render for non-admins
-  if (status === 'loading' || !isAdmin) {
+  if (isLoading || !userIsAdmin) {
     return null
   }
 

@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { users, organizations } from '@/lib/db/schema';
+import { users, organizations, accounts } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { hashPassword } from '@/lib/auth';
-import { randomUUID } from 'crypto';
 import { notifyApprovers, isFirstUserInOrg, getNapaAdmins, getOrgAdminsForOrg } from '@/lib/services-drizzle/approvals';
 import { sendApprovalRequestEmail } from '@/lib/services-drizzle/email';
+
+// Generate a random ID compatible with BetterAuth
+function generateId(): string {
+  return crypto.randomUUID();
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,9 +47,49 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingUser) {
+      // Check if this is a pre-invited user (created by admin invite, no account/password yet)
+      const existingAccount = await db.query.accounts.findFirst({
+        where: eq(accounts.userId, existingUser.id),
+      });
+
+      if (!existingAccount && existingUser.approvalStatus === 'approved') {
+        // This is a pre-invited user — complete their account setup
+        const hashedPassword = await hashPassword(password);
+
+        // Update user record with name
+        await db
+          .update(users)
+          .set({
+            name: name || null,
+            emailVerified: false,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, existingUser.id));
+
+        // Create account record for BetterAuth (credential provider)
+        const accountId = generateId();
+        await db.insert(accounts).values({
+          id: accountId,
+          userId: existingUser.id,
+          accountId: existingUser.id,
+          providerId: 'credential',
+          password: hashedPassword,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+
+        return NextResponse.json({
+          success: true,
+          message: 'Account created successfully',
+          userId: existingUser.id,
+          approvalStatus: 'approved',
+        });
+      }
+
+      // Return generic message to prevent user enumeration
       return NextResponse.json(
-        { error: 'An account with this email already exists' },
-        { status: 409 }
+        { error: 'Unable to create account. Please try again or contact support.' },
+        { status: 400 }
       );
     }
 
@@ -82,17 +126,34 @@ export async function POST(request: NextRequest) {
     // Only NAPA emails are auto-approved, all others require approval
     const approvalStatus: 'pending' | 'approved' = isNapaEmail ? 'approved' : 'pending';
 
-    // Create user
-    const userId = randomUUID();
+    // Role defaults to 'user' — napaAdmin role is only granted manually by existing NAPA admins
+    const role = 'user';
+
+    // Create user (BetterAuth compatible)
+    const userId = generateId();
     await db.insert(users).values({
       id: userId,
       email: email.toLowerCase(),
       name: name || null,
-      password: hashedPassword,
+      emailVerified: false, // Will be verified via OTP
       organizationName: finalOrgName,
       isAdmin,
       approvalStatus,
-      emailVerified: new Date(), // Mark as verified since they set a password
+      role,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    // Create account record for BetterAuth (credential provider)
+    const accountId = generateId();
+    await db.insert(accounts).values({
+      id: accountId,
+      userId,
+      accountId: userId,
+      providerId: 'credential',
+      password: hashedPassword,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
 
     // If pending, notify appropriate approvers

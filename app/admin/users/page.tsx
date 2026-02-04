@@ -2,22 +2,24 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useSession } from 'next-auth/react'
+import { useSession } from '@/lib/auth-client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toast } from 'sonner'
-import { Loader2, SquarePen, Trash2, Search, MoreHorizontal, Users } from 'lucide-react'
+import { Loader2, SquarePen, Trash2, Search, MoreHorizontal, Users, UserPlus, Ban, ShieldCheck, Shield } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import AdminLayout from '@/components/AdminLayout'
@@ -25,10 +27,13 @@ import AdminLayout from '@/components/AdminLayout'
 interface User {
   id: string
   email: string
+  name: string | null
   organizationName: string | null
   isAdmin: boolean
   isNapaAdmin: boolean
   approvalStatus: string
+  banned: boolean | null
+  banReason: string | null
   createdAt: string
 }
 
@@ -38,15 +43,32 @@ interface Organization {
   createdAt: string
 }
 
+// Extend session user type
+interface ExtendedUser {
+  id?: string
+  role?: string
+}
+
 export default function AdminUsersPage() {
   const router = useRouter()
-  const { data: session, status } = useSession()
+  const { data: session, isPending: isSessionLoading } = useSession()
   const [users, setUsers] = useState<User[]>([])
   const [filteredUsers, setFilteredUsers] = useState<User[]>([])
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedOrg, setSelectedOrg] = useState<string>('all')
+  const [selectedStatus, setSelectedStatus] = useState<string>('all')
+
+  // Cast user to extended type
+  const currentUser = session?.user as ExtendedUser | undefined
+
+  // Invite dialog state
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteOrg, setInviteOrg] = useState('')
+  const [inviteAsAdmin, setInviteAsAdmin] = useState(false)
+  const [isInviting, setIsInviting] = useState(false)
 
   // Edit dialog state
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -54,44 +76,58 @@ export default function AdminUsersPage() {
   const [editForm, setEditForm] = useState({ email: '', organizationName: '', isAdmin: false })
   const [isSaving, setIsSaving] = useState(false)
 
+  // Ban dialog state
+  const [banDialogOpen, setBanDialogOpen] = useState(false)
+  const [banningUser, setBanningUser] = useState<User | null>(null)
+  const [banReason, setBanReason] = useState('')
+  const [isBanning, setIsBanning] = useState(false)
+
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deletingUser, setDeletingUser] = useState<User | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
-    if (status === 'loading') return
-    if (!session?.user) {
+    if (isSessionLoading) return
+    if (!currentUser) {
       router.push('/login')
       return
     }
-    if (!session.user.isNapaAdmin) {
+    if (currentUser.role !== 'napaAdmin') {
       toast.error('You do not have permission to access this page')
       router.push('/')
       return
     }
     fetchData()
-  }, [session, status, router])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, isSessionLoading, router])
 
-  // Filter users based on search and organization
+  // Filter users based on search, organization, and status
   useEffect(() => {
     let filtered = users
 
-    // Filter by search query
     if (searchQuery) {
       filtered = filtered.filter(user =>
         user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (user.name?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
         (user.organizationName?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
       )
     }
 
-    // Filter by organization
     if (selectedOrg !== 'all') {
       filtered = filtered.filter(user => user.organizationName === selectedOrg)
     }
 
+    if (selectedStatus !== 'all') {
+      if (selectedStatus === 'banned') {
+        filtered = filtered.filter(user => user.banned)
+      } else {
+        filtered = filtered.filter(user => user.approvalStatus === selectedStatus && !user.banned)
+      }
+    }
+
     setFilteredUsers(filtered)
-  }, [searchQuery, selectedOrg, users])
+  }, [searchQuery, selectedOrg, selectedStatus, users])
 
   const fetchData = async () => {
     try {
@@ -110,6 +146,45 @@ export default function AdminUsersPage() {
     }
   }
 
+  // --- Invite ---
+  const handleInvite = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!inviteEmail || !inviteOrg) {
+      toast.error('Please enter an email and select an organization')
+      return
+    }
+
+    setIsInviting(true)
+    try {
+      const response = await fetch('/api/v2/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: inviteEmail,
+          organizationName: inviteOrg,
+          isAdmin: inviteAsAdmin,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to invite user')
+      }
+
+      toast.success('Invitation sent successfully!')
+      setInviteDialogOpen(false)
+      setInviteEmail('')
+      setInviteOrg('')
+      setInviteAsAdmin(false)
+      fetchData()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to invite user')
+    } finally {
+      setIsInviting(false)
+    }
+  }
+
+  // --- Edit ---
   const handleEditClick = (user: User) => {
     setEditingUser(user)
     setEditForm({
@@ -140,7 +215,6 @@ export default function AdminUsersPage() {
         throw new Error(error.error || 'Failed to update user')
       }
 
-      // Update local state
       setUsers(users.map(u =>
         u.id === editingUser.id
           ? { ...u, email: editForm.email, organizationName: editForm.organizationName, isAdmin: editForm.isAdmin }
@@ -150,13 +224,79 @@ export default function AdminUsersPage() {
       toast.success('User updated successfully')
       setEditDialogOpen(false)
     } catch (error) {
-      console.error('Failed to update user:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to update user')
     } finally {
       setIsSaving(false)
     }
   }
 
+  // --- Ban / Unban ---
+  const handleBanClick = (user: User) => {
+    setBanningUser(user)
+    setBanReason('')
+    setBanDialogOpen(true)
+  }
+
+  const handleConfirmBan = async () => {
+    if (!banningUser) return
+
+    setIsBanning(true)
+    try {
+      const response = await fetch(`/api/v2/admin/users/${banningUser.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'ban',
+          banReason: banReason || undefined,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to ban user')
+      }
+
+      setUsers(users.map(u =>
+        u.id === banningUser.id
+          ? { ...u, banned: true, banReason: banReason || null }
+          : u
+      ))
+
+      toast.success(`${banningUser.email} has been banned`)
+      setBanDialogOpen(false)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to ban user')
+    } finally {
+      setIsBanning(false)
+    }
+  }
+
+  const handleUnban = async (user: User) => {
+    try {
+      const response = await fetch(`/api/v2/admin/users/${user.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'unban' }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to unban user')
+      }
+
+      setUsers(users.map(u =>
+        u.id === user.id
+          ? { ...u, banned: false, banReason: null }
+          : u
+      ))
+
+      toast.success(`${user.email} has been unbanned`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to unban user')
+    }
+  }
+
+  // --- Delete ---
   const handleDeleteClick = (user: User) => {
     setDeletingUser(user)
     setDeleteDialogOpen(true)
@@ -176,20 +316,51 @@ export default function AdminUsersPage() {
         throw new Error(error.error || 'Failed to delete user')
       }
 
-      // Update local state
       setUsers(users.filter(u => u.id !== deletingUser.id))
-
       toast.success('User deleted successfully')
       setDeleteDialogOpen(false)
     } catch (error) {
-      console.error('Failed to delete user:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to delete user')
     } finally {
       setIsDeleting(false)
     }
   }
 
-  if (status === 'loading' || isLoading) {
+  // --- Status badge helper ---
+  const getStatusBadge = (user: User) => {
+    if (user.banned) {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+          <Ban className="h-3 w-3 mr-1" />
+          Banned
+        </span>
+      )
+    }
+    switch (user.approvalStatus) {
+      case 'approved':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+            Approved
+          </span>
+        )
+      case 'pending':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+            Pending
+          </span>
+        )
+      case 'rejected':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+            Rejected
+          </span>
+        )
+      default:
+        return null
+    }
+  }
+
+  if (isSessionLoading || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -197,7 +368,7 @@ export default function AdminUsersPage() {
     )
   }
 
-  if (!session?.user?.isNapaAdmin) {
+  if (currentUser?.role !== 'napaAdmin') {
     return null
   }
 
@@ -216,11 +387,11 @@ export default function AdminUsersPage() {
                 Showing {filteredUsers.length} of {users.length} users
               </CardDescription>
             </div>
-            <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex flex-col md:flex-row gap-3">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by email or organization..."
+                  placeholder="Search by email, name, or org..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9 w-full md:w-64"
@@ -239,6 +410,22 @@ export default function AdminUsersPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                <SelectTrigger className="w-full md:w-40">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="banned">Banned</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button onClick={() => setInviteDialogOpen(true)}>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Invite User
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -256,54 +443,92 @@ export default function AdminUsersPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Email</TableHead>
+                    <TableHead>User</TableHead>
                     <TableHead>Organization</TableHead>
                     <TableHead>Role</TableHead>
-                    <TableHead>Created</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Joined</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">{user.email}</TableCell>
-                      <TableCell className="text-muted-foreground">{user.organizationName || 'Not set'}</TableCell>
+                    <TableRow key={user.id} className={user.banned ? 'opacity-60' : ''}>
                       <TableCell>
-                        {user.isAdmin ? (
+                        <div>
+                          <p className="font-medium">{user.email}</p>
+                          {user.name && (
+                            <p className="text-sm text-muted-foreground">{user.name}</p>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {user.organizationName || <span className="italic">Not set</span>}
+                      </TableCell>
+                      <TableCell>
+                        {user.isNapaAdmin ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                            <ShieldCheck className="h-3 w-3 mr-1" />
+                            NAPA Admin
+                          </span>
+                        ) : user.isAdmin ? (
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                            <Shield className="h-3 w-3 mr-1" />
                             Admin
                           </span>
                         ) : (
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">
-                            User
+                            Member
                           </span>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        {getStatusBadge(user)}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {new Date(user.createdAt).toLocaleDateString()}
                       </TableCell>
                       <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Open menu</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleEditClick(user)}>
-                              <SquarePen className="h-4 w-4" />
-                              Edit User
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleDeleteClick(user)}
-                              variant="destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              Delete User
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        {user.id !== currentUser?.id ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Open menu</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleEditClick(user)}>
+                                <SquarePen className="h-4 w-4" />
+                                Edit User
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              {user.banned ? (
+                                <DropdownMenuItem onClick={() => handleUnban(user)}>
+                                  <ShieldCheck className="h-4 w-4" />
+                                  Unban User
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem
+                                  onClick={() => handleBanClick(user)}
+                                  variant="destructive"
+                                >
+                                  <Ban className="h-4 w-4" />
+                                  Ban User
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem
+                                onClick={() => handleDeleteClick(user)}
+                                variant="destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Delete User
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">(You)</span>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -313,6 +538,69 @@ export default function AdminUsersPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Invite User Dialog */}
+      <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Invite User to Organization</DialogTitle>
+            <DialogDescription>
+              Send an invitation to join a specific organization. The user will be pre-approved.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleInvite} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="invite-email">Email Address</Label>
+              <Input
+                id="invite-email"
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="user@example.com"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="invite-org">Organization</Label>
+              <Select value={inviteOrg} onValueChange={setInviteOrg} required>
+                <SelectTrigger id="invite-org">
+                  <SelectValue placeholder="Select organization" />
+                </SelectTrigger>
+                <SelectContent>
+                  {organizations.map((org) => (
+                    <SelectItem key={org.id} value={org.organizationName}>
+                      {org.organizationName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="invite-admin"
+                checked={inviteAsAdmin}
+                onCheckedChange={(checked) => setInviteAsAdmin(checked as boolean)}
+              />
+              <Label htmlFor="invite-admin" className="text-sm cursor-pointer font-normal">
+                Make Admin
+              </Label>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setInviteDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isInviting}>
+                {isInviting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Send Invitation
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit User Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
@@ -376,6 +664,55 @@ export default function AdminUsersPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Ban User Dialog */}
+      <Dialog open={banDialogOpen} onOpenChange={setBanDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Ban User</DialogTitle>
+            <DialogDescription>
+              This user will be immediately logged out and unable to access the application.
+            </DialogDescription>
+          </DialogHeader>
+          {banningUser && (
+            <div className="space-y-4">
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                <p className="text-sm text-red-800 dark:text-red-300">
+                  You are about to ban <strong>{banningUser.email}</strong>.
+                  All active sessions will be revoked immediately.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ban-reason">Reason (optional)</Label>
+                <Textarea
+                  id="ban-reason"
+                  value={banReason}
+                  onChange={(e) => setBanReason(e.target.value)}
+                  placeholder="Enter a reason for banning this user..."
+                  rows={3}
+                />
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setBanDialogOpen(false)}
+                  disabled={isBanning}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleConfirmBan}
+                  disabled={isBanning}
+                >
+                  {isBanning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Ban User
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
@@ -386,28 +723,32 @@ export default function AdminUsersPage() {
             </DialogDescription>
           </DialogHeader>
           {deletingUser && (
-            <div className="py-4">
-              <p className="text-sm">
-                <strong>Email:</strong> {deletingUser.email}
-              </p>
-              <p className="text-sm">
-                <strong>Organization:</strong> {deletingUser.organizationName || 'Not set'}
-              </p>
+            <div className="space-y-4">
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                <p className="text-sm text-red-800 dark:text-red-300">
+                  <strong>{deletingUser.email}</strong> will be permanently removed.
+                </p>
+                {deletingUser.organizationName && (
+                  <p className="text-sm text-red-700 dark:text-red-400 mt-1">
+                    Organization: {deletingUser.organizationName}
+                  </p>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={isDeleting}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleConfirmDelete}
+                  disabled={isDeleting}
+                >
+                  {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Delete User
+                </Button>
+              </DialogFooter>
             </div>
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={isDeleting}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleConfirmDelete}
-              disabled={isDeleting}
-            >
-              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Delete User
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </AdminLayout>

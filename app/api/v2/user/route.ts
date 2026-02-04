@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
@@ -6,11 +7,16 @@ import { eq } from 'drizzle-orm';
 
 export async function GET() {
   try {
-    const session = await auth();
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
 
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    // Check NAPA admin role
+    const isNapaAdmin = session.user.role === 'napaAdmin';
 
     return NextResponse.json({
       id: session.user.id,
@@ -18,7 +24,7 @@ export async function GET() {
       name: session.user.name,
       organizationName: session.user.organizationName,
       isAdmin: session.user.isAdmin,
-      isNapaAdmin: session.user.isNapaAdmin,
+      isNapaAdmin,
     });
   } catch (error) {
     console.error('GET user error:', error);
@@ -31,7 +37,9 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
-    const session = await auth();
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
 
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

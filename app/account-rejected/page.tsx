@@ -1,20 +1,32 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useSession, signOut } from 'next-auth/react'
+import { useSession, signOut } from '@/lib/auth-client'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { XCircle, LogOut, Mail } from 'lucide-react'
 import NapaAuthLogo from '@/components/NapaAuthLogo'
 
+// Extend session user type for custom fields
+interface ExtendedUser {
+  id?: string
+  email?: string
+  name?: string
+  organizationName?: string
+  approvalStatus?: string
+}
+
 export default function AccountRejectedPage() {
-  const { data: session, status } = useSession()
+  const { data: session, isPending: isLoading } = useSession()
   const router = useRouter()
-  const [isLoading, setIsLoading] = useState(true)
+  const [isPageLoading, setIsPageLoading] = useState(true)
   const [rejectionReason, setRejectionReason] = useState<string | null>(null)
 
+  // Cast user to extended type
+  const user = session?.user as ExtendedUser | undefined
+
   useEffect(() => {
-    if (status === 'loading') return
+    if (isLoading) return
 
     if (!session) {
       router.push('/login')
@@ -22,13 +34,13 @@ export default function AccountRejectedPage() {
     }
 
     // If approved, redirect to home
-    if (session.user.approvalStatus === 'approved') {
+    if (user?.approvalStatus === 'approved') {
       router.push('/')
       return
     }
 
     // If pending, redirect to pending page
-    if (session.user.approvalStatus === 'pending') {
+    if (user?.approvalStatus === 'pending') {
       router.push('/pending-approval')
       return
     }
@@ -38,16 +50,22 @@ export default function AccountRejectedPage() {
       .then(res => res.json())
       .then(data => {
         setRejectionReason(data.rejectionReason || null)
-        setIsLoading(false)
+        setIsPageLoading(false)
       })
-      .catch(() => setIsLoading(false))
-  }, [session, status, router])
+      .catch(() => setIsPageLoading(false))
+  }, [session, isLoading, user, router])
 
   const handleSignOut = async () => {
-    await signOut({ callbackUrl: '/login' })
+    await signOut({
+      fetchOptions: {
+        onSuccess: () => {
+          router.push('/login')
+        },
+      },
+    })
   }
 
-  if (isLoading || status === 'loading') {
+  if (isPageLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
@@ -84,9 +102,9 @@ export default function AccountRejectedPage() {
 
               <div className="w-full rounded-lg border bg-muted/50 p-4 text-left">
                 <p className="text-sm text-muted-foreground mb-2">Account Details:</p>
-                <p className="text-sm"><strong>Email:</strong> {session?.user?.email}</p>
-                {session?.user?.organizationName && (
-                  <p className="text-sm"><strong>Organization:</strong> {session.user.organizationName}</p>
+                <p className="text-sm"><strong>Email:</strong> {user?.email}</p>
+                {user?.organizationName && (
+                  <p className="text-sm"><strong>Organization:</strong> {user.organizationName}</p>
                 )}
               </div>
 

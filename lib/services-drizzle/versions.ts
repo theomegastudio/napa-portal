@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { resourceVersions, resources, type ResourceVersion } from '@/lib/db/schema';
 import { eq, desc, sql } from 'drizzle-orm';
-import { requireAuth } from '@/lib/auth-helpers';
+import { requireApprovedAuth } from '@/lib/auth-helpers';
 
 export type { ResourceVersion };
 
@@ -11,7 +11,7 @@ export type { ResourceVersion };
 export async function getResourceVersions(
   resourceId: string
 ): Promise<ResourceVersion[]> {
-  const user = await requireAuth();
+  const user = await requireApprovedAuth();
 
   // Get the resource to check access
   const resource = await db.query.resources.findFirst({
@@ -41,7 +41,7 @@ export async function getResourceVersions(
 export async function getLatestVersion(
   resourceId: string
 ): Promise<ResourceVersion | null> {
-  const user = await requireAuth();
+  const user = await requireApprovedAuth();
 
   // Get the resource to check access
   const resource = await db.query.resources.findFirst({
@@ -72,7 +72,7 @@ export async function getResourceVersion(
   resourceId: string,
   versionNumber: number
 ): Promise<ResourceVersion | null> {
-  const user = await requireAuth();
+  const user = await requireApprovedAuth();
 
   // Get the resource to check access
   const resource = await db.query.resources.findFirst({

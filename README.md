@@ -4,10 +4,11 @@ A shared resource library platform for NAPA (National APIDA Panhellenic Associat
 
 ## Features
 
-- **Magic Link Authentication**: Secure passwordless login via email
+- **Email & Password Authentication**: Secure login with BetterAuth and Email OTP verification
 - **Organization-based Access**: Multi-tenant system with organization isolation
 - **Resource Management**: Upload, view, edit, and delete shared resources
 - **Role-based Permissions**: Admin controls for NAPA members
+- **User Approval Workflow**: New users require admin approval before accessing resources
 - **User Management**: NAPA admins can manage all users across organizations
 - **Resource Types**: Support for Policies, Procedures, Documents, and Vendor information
 - **Search & Filter**: Find resources by keyword and type
@@ -15,13 +16,13 @@ A shared resource library platform for NAPA (National APIDA Panhellenic Associat
 
 ## Tech Stack
 
-- **Framework**: Next.js 15 (App Router)
+- **Framework**: Next.js 16 (App Router, Turbopack)
 - **Language**: TypeScript
-- **Authentication**: Supabase Auth (Magic Links)
-- **Database**: Supabase (PostgreSQL)
+- **Authentication**: BetterAuth (Email/Password + Email OTP)
+- **Database**: Neon PostgreSQL with Drizzle ORM
 - **Styling**: Tailwind CSS
-- **UI Components**: shadcn/ui
-- **Storage**: Supabase Storage
+- **UI Components**: shadcn/ui (Vega preset)
+- **Storage**: Local filesystem (Cloudflare R2 planned)
 
 ## Getting Started
 
@@ -29,16 +30,21 @@ A shared resource library platform for NAPA (National APIDA Panhellenic Associat
 
 - Node.js 18+
 - npm/yarn/pnpm/bun
-- Supabase account
+- Neon PostgreSQL database
 
 ### Environment Variables
 
-Create a `.env.local` file in the root directory:
+Copy `.env.local.example` to `.env.local` and fill in the values:
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+cp .env.local.example .env.local
 ```
+
+Key variables:
+- `DATABASE_URL` - Neon PostgreSQL connection string
+- `BETTER_AUTH_SECRET` - Auth secret (generate with `openssl rand -base64 32`)
+- `BETTER_AUTH_URL` - Your app URL
+- `EMAIL_SERVER_*` - SMTP configuration for email OTP
 
 ### Installation
 
@@ -46,63 +52,65 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 # Install dependencies
 npm install
 
+# Push database schema
+npx drizzle-kit push
+
+# Seed the database
+npx tsx lib/db/seed.ts
+
 # Run the development server
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser.
 
-### Supabase Setup
-
-1. Create a new Supabase project
-2. Run the database migrations (see `/supabase` directory if applicable)
-3. Configure authentication redirect URLs in Supabase dashboard:
-   - Development: `http://localhost:3000/auth/callback`
-   - Production: `https://yourdomain.com/auth/callback`
-
-4. Set up Row Level Security (RLS) policies:
-   - Users table: Allow anonymous SELECT for user existence checks
-   - Resources table: Organization-based access control
-   - Organizations table: Public read access
-
 ## Project Structure
 
 ```
 napa-resource-hub/
 ├── app/                    # Next.js app router pages
-│   ├── admin/             # Admin panel
-│   ├── auth/              # Authentication callbacks
+│   ├── admin/             # Admin panel (users, approvals, audit, members, domains)
+│   ├── api/               # API routes
+│   │   ├── auth/          # BetterAuth handler
+│   │   └── v2/            # Application API endpoints
 │   ├── login/             # Login page
 │   ├── signup/            # Signup page
+│   ├── verify-email/      # Email OTP verification
+│   ├── forgot-password/   # Password reset flow
 │   └── page.tsx           # Main dashboard
 ├── components/            # React components
 │   ├── ui/               # shadcn/ui components
 │   └── ...               # Feature components
 ├── lib/                   # Utilities and services
-│   ├── services/         # API service layer
-│   ├── supabase/         # Supabase clients
-│   ├── utils/            # Utility functions (file validation, etc.)
-│   └── types.ts          # TypeScript type definitions
+│   ├── auth.ts           # BetterAuth server config
+│   ├── auth-client.ts    # BetterAuth client config
+│   ├── auth-helpers.ts   # Server-side auth utilities
+│   ├── db/               # Drizzle ORM schema and seeds
+│   ├── services-drizzle/ # API service layer
+│   └── utils/            # Utility functions (file validation, etc.)
 ├── docs/                  # Documentation
-│   └── SECURITY.md       # Security implementation details
+├── drizzle/               # Database migrations
+├── proxy.ts               # Next.js 16 request proxy (auth middleware)
 └── public/               # Static assets
 ```
 
 ## Authentication Flow
 
 1. **New Users**:
-   - Enter email on login page
-   - Redirected to signup if no account exists
-   - Select organization and accept terms
-   - Receive magic link email
-   - Click link to complete registration
+   - Sign up with email, password, and organization
+   - Account created with "pending" approval status
+   - Admin notified for approval
+   - First login requires Email OTP verification (valid for 60 days)
 
 2. **Existing Users**:
-   - Enter email on login page
-   - Receive magic link email
-   - Click link to sign in
+   - Sign in with email and password
+   - Email OTP verification required every 60 days
 
-3. **NAPA Members**:
+3. **Password Reset**:
+   - Request reset code via email
+   - Enter 6-digit OTP and new password
+
+4. **NAPA Members**:
    - Automatically assigned to "National APIDA Panhellenic Association"
    - Email domains: `@napahq.org`, `@napa-online.org`
    - Admin privileges for user management
@@ -126,13 +134,8 @@ For detailed security documentation, see [docs/SECURITY.md](./docs/SECURITY.md)
 
 1. Push code to GitHub
 2. Import project to Vercel
-3. Add environment variables
+3. Add environment variables (see `.env.local.example`)
 4. Deploy
-
-### Environment Variables for Production
-
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 ## License
 

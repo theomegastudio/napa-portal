@@ -5,7 +5,7 @@ import {
   type ApprovalNotification,
 } from '@/lib/db/schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
-import { requireAuth } from '@/lib/auth-helpers';
+import { requireApprovedAuth } from '@/lib/auth-helpers';
 
 export type NotificationWithUser = ApprovalNotification & {
   userName: string | null;
@@ -19,7 +19,7 @@ export type NotificationWithUser = ApprovalNotification & {
 export async function getNotificationsForUser(
   unreadOnly: boolean = false
 ): Promise<NotificationWithUser[]> {
-  const currentUser = await requireAuth();
+  const currentUser = await requireApprovedAuth();
 
   const conditions = [eq(approvalNotifications.recipientId, currentUser.id)];
 
@@ -51,7 +51,7 @@ export async function getNotificationsForUser(
  * Get unread notification count for the current user
  */
 export async function getUnreadNotificationCount(): Promise<number> {
-  const currentUser = await requireAuth();
+  const currentUser = await requireApprovedAuth();
 
   const result = await db
     .select({ count: sql<number>`count(*)` })
@@ -70,7 +70,7 @@ export async function getUnreadNotificationCount(): Promise<number> {
  * Mark a notification as read
  */
 export async function markNotificationAsRead(notificationId: string): Promise<void> {
-  const currentUser = await requireAuth();
+  const currentUser = await requireApprovedAuth();
 
   const notification = await db.query.approvalNotifications.findFirst({
     where: eq(approvalNotifications.id, notificationId),
@@ -94,7 +94,7 @@ export async function markNotificationAsRead(notificationId: string): Promise<vo
  * Mark all notifications as read for current user
  */
 export async function markAllNotificationsAsRead(): Promise<void> {
-  const currentUser = await requireAuth();
+  const currentUser = await requireApprovedAuth();
 
   await db
     .update(approvalNotifications)

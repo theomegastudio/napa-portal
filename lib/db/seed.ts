@@ -3,7 +3,7 @@ config({ path: '.env.local' });
 
 import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
-import { organizations, users } from './schema';
+import { organizations, users, accounts } from './schema';
 import { randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
 
@@ -52,23 +52,35 @@ async function seed() {
   }
   console.log(`  Total: ${ORGANIZATIONS.length} organizations\n`);
 
-  // 2. Create NAPA admin user
+  // 2. Create NAPA admin user (BetterAuth format)
   console.log('Creating admin user...');
-  const adminPassword = await bcrypt.hash('admin123', 12);
+  const adminPassword = await bcrypt.hash('password123', 12);
   const adminId = randomUUID();
+  const accountId = randomUUID();
 
   try {
+    // Create user record
     await db.insert(users).values({
       id: adminId,
-      email: 'admin@napavalleyregister.com',
-      name: 'NAPA Admin',
-      password: adminPassword,
+      email: 'finance@napahq.org',
+      name: 'NAPA Finance',
       organizationName: 'National APIDA Panhellenic Association',
+      role: 'napaAdmin',
       isAdmin: true,
       approvalStatus: 'approved',
-      emailVerified: new Date(),
+      emailVerified: true,
       lastOtpVerifiedAt: new Date(),
     });
+
+    // Create account record for credentials login (BetterAuth format)
+    await db.insert(accounts).values({
+      id: accountId,
+      userId: adminId,
+      accountId: adminId, // For credential accounts, this is the same as userId
+      providerId: 'credential',
+      password: adminPassword,
+    });
+
     console.log('  ✓ Created NAPA admin user');
   } catch (error: unknown) {
     if (error instanceof Error && error.message.includes('unique')) {
@@ -80,8 +92,8 @@ async function seed() {
 
   console.log('\n✅ Seed completed!\n');
   console.log('Login credentials:');
-  console.log('  Email: admin@napavalleyregister.com');
-  console.log('  Password: admin123');
+  console.log('  Email: finance@napahq.org');
+  console.log('  Password: password123');
   console.log('\n⚠️  Change this password after first login!\n');
 
   process.exit(0);

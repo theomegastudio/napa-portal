@@ -1,19 +1,33 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useSession, signOut } from 'next-auth/react'
+import { useSession, signOut } from '@/lib/auth-client'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Clock, LogOut, Mail } from 'lucide-react'
 import NapaAuthLogo from '@/components/NapaAuthLogo'
 
+// Extend session user type for custom fields
+interface ExtendedUser {
+  id?: string
+  email?: string
+  name?: string
+  image?: string
+  organizationName?: string
+  isAdmin?: boolean
+  approvalStatus?: string
+}
+
 export default function PendingApprovalPage() {
-  const { data: session, status } = useSession()
+  const { data: session, isPending: isLoading } = useSession()
   const router = useRouter()
-  const [isLoading, setIsLoading] = useState(true)
+  const [isPageLoading, setIsPageLoading] = useState(true)
+
+  // Cast user to extended type
+  const user = session?.user as ExtendedUser | undefined
 
   useEffect(() => {
-    if (status === 'loading') return
+    if (isLoading) return
 
     if (!session) {
       router.push('/login')
@@ -21,25 +35,31 @@ export default function PendingApprovalPage() {
     }
 
     // If already approved, redirect to home
-    if (session.user.approvalStatus === 'approved') {
+    if (user?.approvalStatus === 'approved') {
       router.push('/')
       return
     }
 
     // If rejected, redirect to rejected page
-    if (session.user.approvalStatus === 'rejected') {
+    if (user?.approvalStatus === 'rejected') {
       router.push('/account-rejected')
       return
     }
 
-    setIsLoading(false)
-  }, [session, status, router])
+    setIsPageLoading(false)
+  }, [session, isLoading, user, router])
 
   const handleSignOut = async () => {
-    await signOut({ callbackUrl: '/login' })
+    await signOut({
+      fetchOptions: {
+        onSuccess: () => {
+          router.push('/login')
+        },
+      },
+    })
   }
 
-  if (isLoading || status === 'loading') {
+  if (isPageLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
@@ -69,9 +89,9 @@ export default function PendingApprovalPage() {
 
               <div className="w-full rounded-lg border bg-muted/50 p-4 text-left">
                 <p className="text-sm text-muted-foreground mb-2">Account Details:</p>
-                <p className="text-sm"><strong>Email:</strong> {session?.user?.email}</p>
-                {session?.user?.organizationName && (
-                  <p className="text-sm"><strong>Organization:</strong> {session.user.organizationName}</p>
+                <p className="text-sm"><strong>Email:</strong> {user?.email}</p>
+                {user?.organizationName && (
+                  <p className="text-sm"><strong>Organization:</strong> {user.organizationName}</p>
                 )}
               </div>
 

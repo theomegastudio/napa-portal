@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { useSession } from 'next-auth/react'
+import { useSession, emailOtp } from '@/lib/auth-client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,7 +12,7 @@ import NapaAuthLogo from '@/components/NapaAuthLogo'
 
 export default function VerifyEmailPage() {
   const router = useRouter()
-  const { data: session, status, update } = useSession()
+  const { data: session, isPending: isLoading, refetch } = useSession()
   const [code, setCode] = useState(['', '', '', '', '', ''])
   const [isVerifying, setIsVerifying] = useState(false)
   const [isSending, setIsSending] = useState(false)
@@ -31,39 +31,41 @@ export default function VerifyEmailPage() {
 
   // Redirect if not authenticated
   useEffect(() => {
-    if (status === 'unauthenticated') {
+    if (!isLoading && !session?.user) {
       router.push('/login')
     }
-  }, [status, router])
+  }, [isLoading, session, router])
 
   // Auto-send code on first load (use ref to prevent double-send in React Strict Mode)
   useEffect(() => {
-    if (status === 'authenticated' && !codeSent && !initialSendAttempted.current) {
+    if (!isLoading && session?.user && !codeSent && !initialSendAttempted.current) {
       initialSendAttempted.current = true
       handleSendCode()
     }
-  }, [status, codeSent])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, session, codeSent])
 
   const handleSendCode = async () => {
+    if (!session?.user?.email) return
+
     setIsSending(true)
     try {
-      const response = await fetch('/api/v2/auth/otp/send', {
-        method: 'POST',
+      const result = await emailOtp.sendVerificationOtp({
+        email: session.user.email,
+        type: 'email-verification',
       })
 
-      const data = await response.json()
-
-      if (!response.ok) {
+      if (result.error) {
         // Check if it's a rate limit error with retry time
-        if (data.error?.includes('wait')) {
-          toast.error(data.error)
+        if (result.error.message?.includes('wait')) {
+          toast.error(result.error.message)
           // Extract seconds from error message and set cooldown
-          const match = data.error.match(/(\d+) seconds/)
+          const match = result.error.message.match(/(\d+) seconds/)
           if (match) {
             setResendCooldown(parseInt(match[1]))
           }
         } else {
-          toast.error(data.error || 'Failed to send verification code')
+          toast.error(result.error.message || 'Failed to send verification code')
         }
         return
       }
@@ -128,31 +130,42 @@ export default function VerifyEmailPage() {
       return
     }
 
+    if (!session?.user?.email) {
+      toast.error('Session expired. Please log in again.')
+      router.push('/login')
+      return
+    }
+
     setIsVerifying(true)
     try {
-      const response = await fetch('/api/v2/auth/otp/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: verificationCode }),
+      // Verify OTP using BetterAuth
+      const result = await emailOtp.verifyEmail({
+        email: session.user.email,
+        otp: verificationCode,
       })
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        toast.error(data.error || 'Invalid verification code')
+      if (result.error) {
+        toast.error(result.error.message || 'Invalid verification code')
         // Clear code on error
         setCode(['', '', '', '', '', ''])
         inputRefs.current[0]?.focus()
         return
       }
 
+      // Update lastOtpVerifiedAt for 60-day validity tracking
+      await fetch('/api/v2/auth/otp/verify-and-update', {
+        method: 'POST',
+      })
+
+      // Force session refetch to pick up the updated lastOtpVerifiedAt
+      // disableCookieCache bypasses BetterAuth's 5-min cookie cache
+      await refetch({ query: { disableCookieCache: true } })
+
       toast.success('Email verified successfully!')
 
-      // Refresh session to get updated verification status
-      await update()
-
-      // Redirect to dashboard
-      router.push('/')
+      // Hard navigation to ensure fresh session data is used
+      // (router.push + router.refresh can still use stale cached session)
+      window.location.href = '/'
     } catch (error) {
       toast.error('Failed to verify code')
       console.error(error)
@@ -161,7 +174,7 @@ export default function VerifyEmailPage() {
     }
   }
 
-  if (status === 'loading') {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

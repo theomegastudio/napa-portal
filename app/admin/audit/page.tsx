@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { useSession } from "next-auth/react"
+import { useSession } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -27,9 +27,19 @@ interface AuditLog {
   metadata: Record<string, any>
 }
 
+// Extend session user type
+interface ExtendedUser {
+  isAdmin?: boolean
+  role?: string
+  organizationName?: string
+}
+
 export default function AuditLogPage() {
   const router = useRouter()
-  const { data: session, status } = useSession()
+  const { data: session, isPending: isSessionLoading } = useSession()
+
+  // Cast user to extended type
+  const user = session?.user as ExtendedUser | undefined
 
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [total, setTotal] = useState(0)
@@ -43,28 +53,30 @@ export default function AuditLogPage() {
   const [endDate, setEndDate] = useState("")
   const [page, setPage] = useState(0)
 
-  const isNapaUser = session?.user?.isNapaAdmin || false
+  const isNapaUser = user?.role === 'napaAdmin'
   const ITEMS_PER_PAGE = 50
 
   useEffect(() => {
-    if (status === 'loading') return
-    if (!session?.user) {
+    if (isSessionLoading) return
+    if (!user) {
       router.push('/login')
       return
     }
-    if (!session.user.isAdmin) {
+    if (!user.isAdmin && user.role !== 'napaAdmin') {
       toast.error("Access denied: Admin privileges required")
       router.push('/')
       return
     }
-  }, [session, status, router])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isSessionLoading, router])
 
   useEffect(() => {
-    if (status === 'authenticated' && session?.user?.isAdmin) {
+    if (!isSessionLoading && (user?.isAdmin || user?.role === 'napaAdmin')) {
       fetchLogs()
       fetchStats()
     }
-  }, [session, status, action, organization, startDate, endDate, page])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isSessionLoading, action, organization, startDate, endDate, page])
 
   const buildQueryParams = () => {
     const params = new URLSearchParams()
@@ -151,7 +163,7 @@ export default function AuditLogPage() {
     }
   }
 
-  if (status === 'loading') {
+  if (isSessionLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Skeleton className="h-12 w-64" />
@@ -159,7 +171,7 @@ export default function AuditLogPage() {
     )
   }
 
-  if (!session?.user?.isAdmin) {
+  if (!user?.isAdmin && user?.role !== 'napaAdmin') {
     return null
   }
 
@@ -168,7 +180,7 @@ export default function AuditLogPage() {
   return (
     <AdminLayout
       title="Audit Logs"
-      description={isNapaUser ? 'System-wide activity log' : `Activity log for ${session.user.organizationName}`}
+      description={isNapaUser ? 'System-wide activity log' : `Activity log for ${user?.organizationName}`}
     >
         {/* Export Button */}
         <div className="flex justify-end mb-6">

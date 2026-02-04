@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useSession } from '@/lib/auth-client'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,9 +43,18 @@ interface PendingUser {
   isFirstUserInOrg: boolean
 }
 
+// Extend session user type
+interface ExtendedUser {
+  isAdmin?: boolean
+}
+
 export default function AdminApprovalsPage() {
-  const { data: session, status } = useSession()
+  const { data: session, isPending: isSessionLoading } = useSession()
   const router = useRouter()
+
+  // Cast user to extended type
+  const user = session?.user as ExtendedUser | undefined
+
   const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([])
   const [filteredUsers, setFilteredUsers] = useState<PendingUser[]>([])
   const [loading, setLoading] = useState(true)
@@ -64,15 +73,16 @@ export default function AdminApprovalsPage() {
   const [rejecting, setRejecting] = useState(false)
 
   useEffect(() => {
-    if (status === 'loading') return
+    if (isSessionLoading) return
 
-    if (!session?.user?.isAdmin) {
+    if (!user?.isAdmin) {
       router.push('/')
       return
     }
 
     fetchPendingUsers()
-  }, [session, status, router])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isSessionLoading, router])
 
   useEffect(() => {
     if (searchQuery) {
@@ -173,7 +183,7 @@ export default function AdminApprovalsPage() {
     setRejectDialogOpen(true)
   }
 
-  if (status === 'loading' || loading) {
+  if (isSessionLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

@@ -1,4 +1,5 @@
 import { auth } from './auth';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 /**
@@ -6,7 +7,9 @@ import { redirect } from 'next/navigation';
  * Use this in page components to redirect pending/rejected users.
  */
 export async function requireApprovedUser() {
-  const session = await auth();
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
 
   if (!session?.user) {
     redirect('/login');
@@ -27,7 +30,9 @@ export async function requireApprovedUser() {
  * Check if user is approved (for conditional rendering)
  */
 export async function isUserApproved(): Promise<boolean> {
-  const session = await auth();
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
   return session?.user?.approvalStatus === 'approved';
 }
 
@@ -35,7 +40,9 @@ export async function isUserApproved(): Promise<boolean> {
  * Get approval status for current user
  */
 export async function getApprovalStatus() {
-  const session = await auth();
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
 
   if (!session?.user) {
     return null;

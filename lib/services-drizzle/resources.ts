@@ -8,7 +8,7 @@ import {
   type NewResource,
 } from '@/lib/db/schema';
 import { eq, and, isNull, ilike, or, desc, sql } from 'drizzle-orm';
-import { requireAuth } from '@/lib/auth-helpers';
+import { requireApprovedAuth } from '@/lib/auth-helpers';
 
 export type { Resource, ResourceFile } from '@/lib/db/schema';
 
@@ -24,7 +24,7 @@ export async function getResources(params?: {
   searchText?: string;
   resourceType?: string;
 }): Promise<ResourceWithFiles[]> {
-  const user = await requireAuth();
+  const user = await requireApprovedAuth();
 
   // Build where conditions
   const conditions = [isNull(resources.deletedAt)];
@@ -34,12 +34,13 @@ export async function getResources(params?: {
     conditions.push(eq(resources.organization, user.organizationName));
   }
 
-  // Search filter
+  // Search filter (escape ILIKE wildcards to prevent injection)
   if (params?.searchText) {
+    const escaped = params.searchText.replace(/[%_\\]/g, '\\$&');
     conditions.push(
       or(
-        ilike(resources.title, `%${params.searchText}%`),
-        ilike(resources.description, `%${params.searchText}%`)
+        ilike(resources.title, `%${escaped}%`),
+        ilike(resources.description, `%${escaped}%`)
       )!
     );
   }
@@ -66,7 +67,7 @@ export async function getResources(params?: {
 export async function getResourceById(
   resourceId: string
 ): Promise<ResourceWithFiles | null> {
-  const user = await requireAuth();
+  const user = await requireApprovedAuth();
 
   const resource = await db.query.resources.findFirst({
     where: and(eq(resources.id, resourceId), isNull(resources.deletedAt)),
@@ -95,10 +96,15 @@ export async function createResource(params: {
   externalLink?: string;
   files?: { url: string; name?: string }[];
 }) {
-  const user = await requireAuth();
+  const user = await requireApprovedAuth();
 
   if (!user.organizationName) {
     throw new Error('User must belong to an organization');
+  }
+
+  // Check permission - must be admin to create resources
+  if (!user.isNapaAdmin && !user.isAdmin) {
+    throw new Error('Unauthorized: Admin access required to create resources');
   }
 
   return await db.transaction(async (tx) => {
@@ -158,7 +164,7 @@ export async function updateResource(params: {
   files?: { url: string; name?: string }[];
   changeNotes?: string;
 }) {
-  const user = await requireAuth();
+  const user = await requireApprovedAuth();
 
   // Verify access to resource
   const existing = await getResourceById(params.resourceId);
@@ -241,7 +247,7 @@ export async function updateResource(params: {
  * Delete a resource file
  */
 export async function deleteResourceFile(fileId: string) {
-  const user = await requireAuth();
+  const user = await requireApprovedAuth();
 
   // Get the file and its resource
   const file = await db.query.resourceFiles.findFirst({
@@ -255,12 +261,14 @@ export async function deleteResourceFile(fileId: string) {
     throw new Error('File not found');
   }
 
-  // Check permission
-  if (
-    !user.isNapaAdmin &&
-    file.resource.organization !== user.organizationName
-  ) {
-    throw new Error('Unauthorized: Cannot delete this file');
+  // Check permission - must be admin and belong to same org (or NAPA admin)
+  if (!user.isNapaAdmin) {
+    if (!user.isAdmin) {
+      throw new Error('Unauthorized: Admin access required to delete files');
+    }
+    if (file.resource.organization !== user.organizationName) {
+      throw new Error('Unauthorized: Cannot delete files from another organization');
+    }
   }
 
   await db.delete(resourceFiles).where(eq(resourceFiles.id, fileId));
@@ -270,7 +278,7 @@ export async function deleteResourceFile(fileId: string) {
  * Soft delete a resource
  */
 export async function deleteResource(resourceId: string) {
-  const user = await requireAuth();
+  const user = await requireApprovedAuth();
 
   // Verify access
   const existing = await getResourceById(resourceId);
