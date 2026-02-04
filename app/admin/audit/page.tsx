@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
-import { Download, FileText, Activity, Users, TrendingUp } from "lucide-react"
+import { Download, FileText, Activity, Users, TrendingUp, UserCheck } from "lucide-react"
 import AdminLayout from "@/components/AdminLayout"
 
 interface AuditLog {
@@ -158,6 +158,18 @@ export default function AuditLogPage() {
         return 'bg-purple-600 text-white'
       case 'viewed':
         return 'bg-gray-600 text-white'
+      case 'signup':
+        return 'bg-emerald-600 text-white'
+      case 'invited':
+        return 'bg-indigo-600 text-white'
+      case 'approved':
+        return 'bg-teal-600 text-white'
+      case 'rejected':
+        return 'bg-orange-600 text-white'
+      case 'banned':
+        return 'bg-rose-600 text-white'
+      case 'unbanned':
+        return 'bg-amber-600 text-white'
       default:
         return 'bg-gray-600 text-white'
     }
@@ -176,6 +188,16 @@ export default function AuditLogPage() {
   }
 
   const totalPages = Math.ceil(total / ITEMS_PER_PAGE)
+
+  // Calculate user events count from stats
+  const userEventsCount = stats
+    ? (stats.actionCounts.signup || 0) +
+      (stats.actionCounts.invited || 0) +
+      (stats.actionCounts.approved || 0) +
+      (stats.actionCounts.rejected || 0) +
+      (stats.actionCounts.banned || 0) +
+      (stats.actionCounts.unbanned || 0)
+    : 0
 
   return (
     <AdminLayout
@@ -224,29 +246,33 @@ export default function AuditLogPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Deleted</CardTitle>
-                <Users className="h-4 w-4 text-red-600" />
+                <CardTitle className="text-sm font-medium">User Events</CardTitle>
+                <UserCheck className="h-4 w-4 text-indigo-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.actionCounts.deleted || 0}</div>
+                <div className="text-2xl font-bold">{userEventsCount}</div>
               </CardContent>
             </Card>
           </div>
         )}
 
-        {/* Filters */}
-        <Card className="mb-6">
+        {/* Activity Log with Integrated Filters */}
+        <Card>
           <CardHeader>
-            <CardTitle>Filters</CardTitle>
-            <CardDescription>Filter audit logs by action, date range, and organization</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Action</label>
-                <Select value={action} onValueChange={setAction}>
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Activity Log</CardTitle>
+                  <CardDescription>
+                    Showing {logs.length} of {total} total entries
+                  </CardDescription>
+                </div>
+              </div>
+              {/* Filters integrated into header */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <Select value={action} onValueChange={(val) => { setAction(val); setPage(0) }}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Action" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Actions</SelectItem>
@@ -255,16 +281,19 @@ export default function AuditLogPage() {
                     <SelectItem value="deleted">Deleted</SelectItem>
                     <SelectItem value="downloaded">Downloaded</SelectItem>
                     <SelectItem value="viewed">Viewed</SelectItem>
+                    <SelectItem value="signup">Signup</SelectItem>
+                    <SelectItem value="invited">Invited</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                    <SelectItem value="banned">Banned</SelectItem>
+                    <SelectItem value="unbanned">Unbanned</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
 
-              {isNapaUser && (
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Organization</label>
-                  <Select value={organization} onValueChange={setOrganization}>
+                {isNapaUser && (
+                  <Select value={organization} onValueChange={(val) => { setOrganization(val); setPage(0) }}>
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Organization" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Organizations</SelectItem>
@@ -273,37 +302,23 @@ export default function AuditLogPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-              )}
+                )}
 
-              <div>
-                <label className="text-sm font-medium mb-2 block">Start Date</label>
                 <Input
                   type="date"
+                  placeholder="Start date"
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={(e) => { setStartDate(e.target.value); setPage(0) }}
                 />
-              </div>
 
-              <div>
-                <label className="text-sm font-medium mb-2 block">End Date</label>
                 <Input
                   type="date"
+                  placeholder="End date"
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  onChange={(e) => { setEndDate(e.target.value); setPage(0) }}
                 />
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Audit Log Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Activity Log</CardTitle>
-            <CardDescription>
-              Showing {logs.length} of {total} total entries
-            </CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -328,7 +343,7 @@ export default function AuditLogPage() {
                         <TableHead>User</TableHead>
                         {isNapaUser && <TableHead>Organization</TableHead>}
                         <TableHead>Action</TableHead>
-                        <TableHead>Resource</TableHead>
+                        <TableHead>Target</TableHead>
                         <TableHead>Type</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -346,7 +361,15 @@ export default function AuditLogPage() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-sm">{log.resourceTitle || 'N/A'}</TableCell>
-                          <TableCell className="text-sm">{log.resourceType || 'N/A'}</TableCell>
+                          <TableCell className="text-sm">
+                            {log.resourceType === 'user' ? (
+                              <Badge variant="outline" className="text-indigo-600 border-indigo-300">
+                                User
+                              </Badge>
+                            ) : (
+                              log.resourceType || 'N/A'
+                            )}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

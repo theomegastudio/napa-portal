@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllUsers, getOrganizations, inviteUserToOrg } from '@/lib/services-drizzle/users';
+import { createUserAuditLog } from '@/lib/services-drizzle/audit';
+import { requireAuth } from '@/lib/auth-helpers';
 
 export async function GET(request: NextRequest) {
   try {
@@ -39,6 +41,21 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await inviteUserToOrg(email, organizationName, isAdmin || false);
+
+    // Audit log: user invited
+    try {
+      const admin = await requireAuth();
+      await createUserAuditLog({
+        adminId: admin.id,
+        adminEmail: admin.email,
+        organization: organizationName,
+        action: 'invited',
+        targetUserId: result.userId,
+        targetUserEmail: email,
+        metadata: { isAdmin: isAdmin || false, status: result.status },
+      });
+    } catch {}
+
     return NextResponse.json(result);
   } catch (error) {
     console.error('POST invite user error:', error);

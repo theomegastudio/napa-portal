@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { hashPassword } from '@/lib/auth';
 import { notifyApprovers, isFirstUserInOrg, getNapaAdmins, getOrgAdminsForOrg } from '@/lib/services-drizzle/approvals';
 import { sendApprovalRequestEmail } from '@/lib/services-drizzle/email';
+import { createAuditLog } from '@/lib/services-drizzle/audit';
 
 // Generate a random ID compatible with BetterAuth
 function generateId(): string {
@@ -77,6 +78,20 @@ export async function POST(request: NextRequest) {
           createdAt: new Date(),
           updatedAt: new Date(),
         });
+
+        // Audit log: invited user completed signup
+        try {
+          await createAuditLog({
+            userId: existingUser.id,
+            userEmail: email.toLowerCase(),
+            organization: existingUser.organizationName || 'Unaffiliated',
+            action: 'signup',
+            resourceId: existingUser.id,
+            resourceTitle: email.toLowerCase(),
+            resourceType: 'user',
+            metadata: { name: name || null, approvalStatus: 'approved', invitedUserCompletion: true },
+          });
+        } catch {}
 
         return NextResponse.json({
           success: true,
@@ -155,6 +170,20 @@ export async function POST(request: NextRequest) {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
+
+    // Audit log: new user signup
+    try {
+      await createAuditLog({
+        userId: userId,
+        userEmail: email.toLowerCase(),
+        organization: finalOrgName || 'Unaffiliated',
+        action: 'signup',
+        resourceId: userId,
+        resourceTitle: email.toLowerCase(),
+        resourceType: 'user',
+        metadata: { name: name || null, approvalStatus, autoApproved: isNapaEmail },
+      });
+    } catch {}
 
     // If pending, notify appropriate approvers
     if (approvalStatus === 'pending' && finalOrgName) {

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rejectUser } from '@/lib/services-drizzle/approvals';
 import { sendApprovalNotificationEmail } from '@/lib/services-drizzle/email';
+import { createUserAuditLog } from '@/lib/services-drizzle/audit';
+import { requireAuth } from '@/lib/auth-helpers';
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -24,6 +26,20 @@ export async function POST(
     }
 
     await rejectUser(userId, reason);
+
+    // Audit log: user rejected
+    try {
+      const admin = await requireAuth();
+      await createUserAuditLog({
+        adminId: admin.id,
+        adminEmail: admin.email,
+        organization: userToReject.organizationName || 'Unaffiliated',
+        action: 'rejected',
+        targetUserId: userId,
+        targetUserEmail: userToReject.email,
+        metadata: { reason: reason || null },
+      });
+    } catch {}
 
     // Send rejection notification email
     try {

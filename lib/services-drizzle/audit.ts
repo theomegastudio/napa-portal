@@ -4,7 +4,9 @@ import { eq, and, gte, lte, desc, sql, count } from 'drizzle-orm';
 import { requireApprovedAuth } from '@/lib/auth-helpers';
 
 export type { AuditLog };
-export type AuditAction = 'created' | 'updated' | 'deleted' | 'downloaded' | 'viewed';
+export type AuditAction =
+  | 'created' | 'updated' | 'deleted' | 'downloaded' | 'viewed'
+  | 'signup' | 'invited' | 'approved' | 'rejected' | 'banned' | 'unbanned';
 
 /**
  * Create an audit log entry
@@ -189,4 +191,32 @@ export async function exportAuditLogsToCSV(params?: {
   ].join('\n');
 
   return csvContent;
+}
+
+/**
+ * Create an audit log entry for user management events.
+ * Maps user management concepts to the existing audit log columns:
+ * - resourceId → target user's ID
+ * - resourceTitle → target user's email
+ * - resourceType → 'user'
+ */
+export async function createUserAuditLog(params: {
+  adminId: string;
+  adminEmail: string;
+  organization: string;
+  action: AuditAction;
+  targetUserId: string;
+  targetUserEmail: string;
+  metadata?: Record<string, any>;
+}) {
+  return createAuditLog({
+    userId: params.adminId,
+    userEmail: params.adminEmail,
+    organization: params.organization,
+    action: params.action,
+    resourceId: params.targetUserId,
+    resourceTitle: params.targetUserEmail,
+    resourceType: 'user',
+    metadata: params.metadata || {},
+  });
 }

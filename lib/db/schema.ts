@@ -27,6 +27,12 @@ export const auditActionEnum = pgEnum('audit_action', [
   'deleted',
   'downloaded',
   'viewed',
+  'signup',
+  'invited',
+  'approved',
+  'rejected',
+  'banned',
+  'unbanned',
 ]);
 
 export const approvalStatusEnum = pgEnum('approval_status', [
