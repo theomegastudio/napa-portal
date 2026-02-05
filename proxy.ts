@@ -17,7 +17,7 @@ const publicRoutes = [
   '/api/v2/organizations',
 ];
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow public routes
