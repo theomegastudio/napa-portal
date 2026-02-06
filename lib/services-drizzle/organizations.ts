@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { organizations, users } from '@/lib/db/schema';
-import { eq, asc } from 'drizzle-orm';
+import { eq, asc, sql } from 'drizzle-orm';
 import { requireAuth } from '@/lib/auth-helpers';
 
 export type { Organization } from '@/lib/db/schema';
@@ -9,9 +9,11 @@ export type { Organization } from '@/lib/db/schema';
  * Get all organizations (for signup dropdown)
  */
 export async function getOrganizations() {
-  const orgs = await db.query.organizations.findMany({
-    orderBy: asc(organizations.organizationName),
-  });
+  // Use LOWER() for case-insensitive sorting (so "alpha" comes before "Alpha")
+  const orgs = await db
+    .select()
+    .from(organizations)
+    .orderBy(sql`LOWER(${organizations.organizationName})`);
 
   return orgs;
 }
