@@ -9,6 +9,7 @@ import {
 } from '@/lib/db/schema';
 import { eq, and, isNull, ilike, or, desc, sql } from 'drizzle-orm';
 import { requireApprovedAuth } from '@/lib/auth-helpers';
+import { deleteFile } from './storage';
 
 export type { Resource, ResourceFile } from '@/lib/db/schema';
 
@@ -263,6 +264,12 @@ export async function deleteResourceFile(fileId: string) {
     }
   }
 
+  // Delete from R2 storage
+  if (file.fileUrl) {
+    await deleteFile(file.fileUrl);
+  }
+
+  // Delete from database
   await db.delete(resourceFiles).where(eq(resourceFiles.id, fileId));
 }
 

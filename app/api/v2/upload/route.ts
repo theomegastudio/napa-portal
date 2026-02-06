@@ -5,12 +5,20 @@ import {
   validateFileServer,
   validateFileSizeServer,
 } from '@/lib/utils/server-file-validation';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
-type StorageProvider = 'local' | 'r2' | 's3' | 'minio';
-const STORAGE_PROVIDER =
-  (process.env.STORAGE_PROVIDER as StorageProvider) || 'local';
+// Initialize R2 client
+const r2Client = new S3Client({
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
+  },
+});
+
+const R2_BUCKET = process.env.R2_BUCKET_NAME || 'napa-resources';
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || '';
 
 export async function POST(request: NextRequest) {
   try {
@@ -60,23 +68,8 @@ export async function POST(request: NextRequest) {
     const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '_');
     const uniqueFilename = `${timestamp}-${sanitizedFilename}`;
 
-    let fileUrl: string;
-
-    switch (STORAGE_PROVIDER) {
-      case 'local':
-        fileUrl = await uploadToLocal(buffer, uniqueFilename, file.type);
-        break;
-      case 'r2':
-      case 's3':
-      case 'minio':
-        // S3 upload requires @aws-sdk/client-s3 - fall back to local for now
-        // TODO: Implement S3 upload when ready for production
-        console.warn('S3 storage not yet implemented, falling back to local');
-        fileUrl = await uploadToLocal(buffer, uniqueFilename, file.type);
-        break;
-      default:
-        fileUrl = await uploadToLocal(buffer, uniqueFilename, file.type);
-    }
+    // Upload to R2
+    const fileUrl = await uploadToR2(buffer, uniqueFilename, file.type);
 
     return NextResponse.json({
       success: true,
@@ -94,24 +87,24 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Upload to local filesystem (for development/testing)
+ * Upload to Cloudflare R2
  */
-async function uploadToLocal(
+async function uploadToR2(
   buffer: Buffer,
   filename: string,
   contentType: string
 ): Promise<string> {
-  const uploadsDir = join(process.cwd(), 'public', 'uploads');
+  const key = `uploads/${filename}`;
 
-  // Ensure uploads directory exists
-  await mkdir(uploadsDir, { recursive: true });
-
-  const filePath = join(uploadsDir, filename);
-  await writeFile(filePath, buffer);
+  await r2Client.send(
+    new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
+    })
+  );
 
   // Return the public URL
-  return `/uploads/${filename}`;
+  return `${R2_PUBLIC_URL}/${key}`;
 }
-
-// S3 upload will be implemented when @aws-sdk/client-s3 is installed
-// npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner

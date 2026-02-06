@@ -1,9 +1,18 @@
 import { validateFile, sanitizeFilename } from '@/lib/utils/file-validation';
+import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
-// Storage provider type - we'll support multiple backends
-export type StorageProvider = 'local' | 'r2' | 's3' | 'minio';
+// R2 client for server-side operations
+const r2Client = new S3Client({
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
+  },
+});
 
-const STORAGE_PROVIDER = (process.env.STORAGE_PROVIDER as StorageProvider) || 'local';
+const R2_BUCKET = process.env.R2_BUCKET_NAME || 'napa-resources';
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || '';
 
 /**
  * Upload a file to the configured storage provider
@@ -49,81 +58,31 @@ export async function uploadFile(
 }
 
 /**
- * Delete a file from storage
+ * Delete a file from R2 storage
  * This is called from the server-side only
  */
 export async function deleteFile(fileUrl: string): Promise<void> {
-  // Extract the file key from the URL
-  const url = new URL(fileUrl);
-  const key = url.pathname.replace(/^\//, '');
-
-  switch (STORAGE_PROVIDER) {
-    case 'local':
-      await deleteLocalFile(key);
-      break;
-    case 'r2':
-    case 's3':
-    case 'minio':
-      await deleteS3File(key);
-      break;
-    default:
-      throw new Error(`Unknown storage provider: ${STORAGE_PROVIDER}`);
-  }
-}
-
-/**
- * Delete a file from local storage
- */
-async function deleteLocalFile(key: string): Promise<void> {
-  const fs = await import('fs/promises');
-  const path = await import('path');
-
-  const filePath = path.join(process.cwd(), 'public', 'uploads', key);
-
+  // Extract the key from the URL
+  // URL format: https://pub-xxx.r2.dev/uploads/filename.pdf
   try {
-    await fs.unlink(filePath);
+    const url = new URL(fileUrl);
+    const key = url.pathname.replace(/^\//, ''); // Remove leading slash
+
+    await r2Client.send(
+      new DeleteObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: key,
+      })
+    );
   } catch (error) {
-    // File might not exist, that's okay
-    console.warn(`Failed to delete local file: ${filePath}`, error);
+    // File might not exist or URL might be invalid, log and continue
+    console.warn(`Failed to delete file from R2: ${fileUrl}`, error);
   }
 }
 
 /**
- * Delete a file from S3-compatible storage (R2, S3, MinIO)
- */
-async function deleteS3File(key: string): Promise<void> {
-  // This will be implemented when we set up R2/S3
-  // For now, just log
-  console.log(`Would delete S3 file: ${key}`);
-
-  // Example implementation:
-  // const { S3Client, DeleteObjectCommand } = await import('@aws-sdk/client-s3');
-  // const client = new S3Client({
-  //   region: process.env.S3_REGION || 'auto',
-  //   endpoint: process.env.S3_ENDPOINT,
-  //   credentials: {
-  //     accessKeyId: process.env.S3_ACCESS_KEY_ID!,
-  //     secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
-  //   },
-  // });
-  // await client.send(new DeleteObjectCommand({
-  //   Bucket: process.env.S3_BUCKET_NAME,
-  //   Key: key,
-  // }));
-}
-
-/**
- * Get the public URL for a file
+ * Get the public URL for a file key
  */
 export function getFileUrl(key: string): string {
-  switch (STORAGE_PROVIDER) {
-    case 'local':
-      return `/uploads/${key}`;
-    case 'r2':
-    case 's3':
-    case 'minio':
-      return `${process.env.S3_PUBLIC_URL}/${key}`;
-    default:
-      return `/uploads/${key}`;
-  }
+  return `${R2_PUBLIC_URL}/${key}`;
 }
