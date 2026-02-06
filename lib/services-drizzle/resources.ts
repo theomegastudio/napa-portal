@@ -27,12 +27,8 @@ export async function getResources(params?: {
   const user = await requireApprovedAuth();
 
   // Build where conditions
+  // All approved users can see all resources (no organization filter)
   const conditions = [isNull(resources.deletedAt)];
-
-  // Organization filter (unless NAPA admin)
-  if (!user.isNapaAdmin && user.organizationName) {
-    conditions.push(eq(resources.organization, user.organizationName));
-  }
 
   // Search filter (escape ILIKE wildcards to prevent injection)
   if (params?.searchText) {
@@ -78,11 +74,7 @@ export async function getResourceById(
 
   if (!resource) return null;
 
-  // Check organization access
-  if (!user.isNapaAdmin && resource.organization !== user.organizationName) {
-    throw new Error('Unauthorized: Cannot access this resource');
-  }
-
+  // All approved users can access all resources
   return resource;
 }
 

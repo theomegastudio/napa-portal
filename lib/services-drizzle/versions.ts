@@ -22,11 +22,7 @@ export async function getResourceVersions(
     throw new Error('Resource not found');
   }
 
-  // Check organization access
-  if (!user.isNapaAdmin && resource.organization !== user.organizationName) {
-    throw new Error('Unauthorized: Cannot access this resource');
-  }
-
+  // All approved users can access all resources
   const versions = await db.query.resourceVersions.findMany({
     where: eq(resourceVersions.resourceId, resourceId),
     orderBy: desc(resourceVersions.versionNumber),
@@ -52,11 +48,7 @@ export async function getLatestVersion(
     return null;
   }
 
-  // Check organization access
-  if (!user.isNapaAdmin && resource.organization !== user.organizationName) {
-    throw new Error('Unauthorized: Cannot access this resource');
-  }
-
+  // All approved users can access all resources
   const version = await db.query.resourceVersions.findFirst({
     where: eq(resourceVersions.resourceId, resourceId),
     orderBy: desc(resourceVersions.versionNumber),
@@ -83,11 +75,7 @@ export async function getResourceVersion(
     return null;
   }
 
-  // Check organization access
-  if (!user.isNapaAdmin && resource.organization !== user.organizationName) {
-    throw new Error('Unauthorized: Cannot access this resource');
-  }
-
+  // All approved users can access all resources
   const version = await db.query.resourceVersions.findFirst({
     where: eq(resourceVersions.resourceId, resourceId),
     orderBy: desc(resourceVersions.versionNumber),
