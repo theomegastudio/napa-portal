@@ -64,7 +64,7 @@ function transformResource(r: Resource) {
     created_at: r.createdAt,
     updated_at: r.updatedAt,
     deleted_at: r.deletedAt,
-    resource_files: r.files.map(f => ({
+    files: r.files.map(f => ({
       id: f.id,
       resource_id: f.resourceId,
       file_url: f.fileUrl,
