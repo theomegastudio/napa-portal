@@ -5,10 +5,17 @@ import {
   timestamp,
   boolean,
   integer,
+  bigint,
   jsonb,
   pgEnum,
+  index,
+  customType,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+
+const tsvector = customType<{ data: string }>({
+  dataType() { return 'tsvector' },
+});
 
 // ============================================
 // Enums
@@ -19,6 +26,18 @@ export const resourceTypeEnum = pgEnum('resource_type', [
   'Procedure',
   'Document',
   'Vendor',
+]);
+
+export const resourceStatusEnum = pgEnum('resource_status', [
+  'active',
+  'archived',
+]);
+
+export const virusScanStatusEnum = pgEnum('virus_scan_status', [
+  'pending',
+  'clean',
+  'infected',
+  'skipped',
 ]);
 
 export const auditActionEnum = pgEnum('audit_action', [
@@ -49,6 +68,9 @@ export const approvalStatusEnum = pgEnum('approval_status', [
 export const organizations = pgTable('organizations', {
   id: uuid('id').primaryKey().defaultRandom(),
   organizationName: text('organization_name').notNull().unique(),
+  slug: text('slug').unique(),
+  logoUrl: text('logo_url'),
+  isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -97,10 +119,33 @@ export const resources = pgTable('resources', {
     .notNull()
     .references(() => organizations.organizationName),
   uploadedBy: text('uploaded_by').notNull(),
+
+  // Status & archive
+  status: resourceStatusEnum('status').default('active').notNull(),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
+  archivedById: text('archived_by_id').references(() => users.id, { onDelete: 'set null' }),
+
+  // File metadata (R2 storage)
+  fileKey: text('file_key'),
+  originalFilename: text('original_filename'),
+  mimeType: text('mime_type'),
+  fileSizeBytes: bigint('file_size_bytes', { mode: 'number' }),
+  virusScanStatus: virusScanStatusEnum('virus_scan_status').default('skipped').notNull(),
+  allowDownload: boolean('allow_download').default(true).notNull(),
+
+  // Categorization
+  topicArea: text('topic_area'),
+  tags: text('tags').array(),
+
+  // Full-text search vector
+  searchVector: tsvector('search_vector'),
+
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
-});
+}, (table) => [
+  index('resources_search_vector_idx').using('gin', table.searchVector),
+]);
 
 // Resource files table
 export const resourceFiles = pgTable('resource_files', {
@@ -177,6 +222,87 @@ export const approvalNotifications = pgTable('approval_notifications', {
 });
 
 // ============================================
+// Org Health & Engagement Tables
+// ============================================
+
+export const duesRecords = pgTable('dues_records', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationName: text('organization_name')
+    .notNull()
+    .references(() => organizations.organizationName, { onDelete: 'cascade' }),
+  year: integer('year').notNull(),
+  amountCents: integer('amount_cents').notNull(), // stored in cents to avoid float precision
+  paidAt: timestamp('paid_at', { withTimezone: true }),
+  notes: text('notes'),
+  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const meetingTypeEnum = pgEnum('meeting_type', [
+  'general',
+  'board',
+  'committee',
+  'special',
+  'annual',
+]);
+
+export const meetings = pgTable('meetings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: text('title').notNull(),
+  meetingType: meetingTypeEnum('meeting_type').default('general').notNull(),
+  meetingDate: timestamp('meeting_date', { withTimezone: true }).notNull(),
+  notes: text('notes'),
+  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const meetingAttendance = pgTable('meeting_attendance', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  meetingId: uuid('meeting_id')
+    .notNull()
+    .references(() => meetings.id, { onDelete: 'cascade' }),
+  organizationName: text('organization_name')
+    .notNull()
+    .references(() => organizations.organizationName, { onDelete: 'cascade' }),
+  attended: boolean('attended').default(false).notNull(),
+  notes: text('notes'),
+  recordedBy: text('recorded_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const orgHealthMetrics = pgTable('org_health_metrics', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationName: text('organization_name')
+    .notNull()
+    .references(() => organizations.organizationName, { onDelete: 'cascade' }),
+  year: integer('year').notNull(),
+  month: integer('month'), // null = annual snapshot
+  memberCount: integer('member_count'),
+  meetingsAttended: integer('meetings_attended'),
+  totalMeetings: integer('total_meetings'),
+  duesPaid: boolean('dues_paid'),
+  engagementScore: integer('engagement_score'), // 0-100
+  notes: text('notes'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const notificationPreferences = pgTable('notification_preferences', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id')
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  emailOnApproval: boolean('email_on_approval').default(true).notNull(),
+  emailOnNewResource: boolean('email_on_new_resource').default(true).notNull(),
+  emailOnMeetingReminder: boolean('email_on_meeting_reminder').default(true).notNull(),
+  emailOnDuesReminder: boolean('email_on_dues_reminder').default(true).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ============================================
 // BetterAuth Required Tables
 // ============================================
 
@@ -242,6 +368,9 @@ export const organizationsRelations = relations(organizations, ({ many }) => ({
   users: many(users),
   resources: many(resources),
   domainWhitelist: many(organizationDomainWhitelist),
+  duesRecords: many(duesRecords),
+  meetingAttendance: many(meetingAttendance),
+  healthMetrics: many(orgHealthMetrics),
 }));
 
 export const resourcesRelations = relations(resources, ({ one, many }) => ({
@@ -305,6 +434,42 @@ export const approvalNotificationsRelations = relations(approvalNotifications, (
   }),
 }));
 
+export const duesRecordsRelations = relations(duesRecords, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [duesRecords.organizationName],
+    references: [organizations.organizationName],
+  }),
+}));
+
+export const meetingsRelations = relations(meetings, ({ many }) => ({
+  attendance: many(meetingAttendance),
+}));
+
+export const meetingAttendanceRelations = relations(meetingAttendance, ({ one }) => ({
+  meeting: one(meetings, {
+    fields: [meetingAttendance.meetingId],
+    references: [meetings.id],
+  }),
+  organization: one(organizations, {
+    fields: [meetingAttendance.organizationName],
+    references: [organizations.organizationName],
+  }),
+}));
+
+export const orgHealthMetricsRelations = relations(orgHealthMetrics, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [orgHealthMetrics.organizationName],
+    references: [organizations.organizationName],
+  }),
+}));
+
+export const notificationPreferencesRelations = relations(notificationPreferences, ({ one }) => ({
+  user: one(users, {
+    fields: [notificationPreferences.userId],
+    references: [users.id],
+  }),
+}));
+
 // ============================================
 // Type Exports
 // ============================================
@@ -343,3 +508,18 @@ export type Verification = typeof verifications.$inferSelect;
 export type NewVerification = typeof verifications.$inferInsert;
 
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
+
+export type DuesRecord = typeof duesRecords.$inferSelect;
+export type NewDuesRecord = typeof duesRecords.$inferInsert;
+
+export type Meeting = typeof meetings.$inferSelect;
+export type NewMeeting = typeof meetings.$inferInsert;
+
+export type MeetingAttendance = typeof meetingAttendance.$inferSelect;
+export type NewMeetingAttendance = typeof meetingAttendance.$inferInsert;
+
+export type OrgHealthMetric = typeof orgHealthMetrics.$inferSelect;
+export type NewOrgHealthMetric = typeof orgHealthMetrics.$inferInsert;
+
+export type NotificationPreference = typeof notificationPreferences.$inferSelect;
+export type NewNotificationPreference = typeof notificationPreferences.$inferInsert;

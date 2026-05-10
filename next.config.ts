@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  experimental: {
+    optimizePackageImports: ['@phosphor-icons/react'],
+  },
   async headers() {
     return [
       {
