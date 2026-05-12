@@ -43,14 +43,14 @@ interface NavItem {
 
 const mainNav: NavItem[] = [
   { title: 'Resources', href: '/', icon: Home },
-  { title: 'Archive', href: '/archive', icon: Archive, comingSoon: true },
+  { title: 'Archive', href: '/archive', icon: Archive },
 ]
 
 const adminNav: NavItem[] = [
   { title: 'Approvals', href: '/admin/approvals', icon: UserCheck, adminOnly: true },
   { title: 'Members', href: '/admin/members', icon: Users, adminOnly: true },
   { title: 'Users', href: '/admin/users', icon: Shield, napaAdminOnly: true },
-  { title: 'Organizations', href: '/admin/organizations', icon: Building2, napaAdminOnly: true, comingSoon: true },
+  { title: 'Organizations', href: '/admin/organizations', icon: Building2, napaAdminOnly: true },
   { title: 'Org Health', href: '/admin/org-health', icon: Activity, adminOnly: true },
   { title: 'Audit Log', href: '/admin/audit', icon: ScrollText, adminOnly: true },
 ]

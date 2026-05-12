@@ -24,12 +24,20 @@ export type ResourceWithFiles = Resource & {
 export async function getResources(params?: {
   searchText?: string;
   resourceType?: string;
+  status?: 'active' | 'archived';
 }): Promise<ResourceWithFiles[]> {
   const user = await requireApprovedAuth();
 
   // Build where conditions
   // All approved users can see all resources (no organization filter)
   const conditions = [isNull(resources.deletedAt)];
+
+  // Status filter
+  if (params?.status === 'archived') {
+    conditions.push(eq(resources.status, 'archived' as any));
+  } else if (params?.status === 'active') {
+    conditions.push(eq(resources.status, 'active' as any));
+  }
 
   // Search filter (escape ILIKE wildcards to prevent injection)
   if (params?.searchText) {

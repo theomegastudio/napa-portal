@@ -9,10 +9,13 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const searchText = searchParams.get('searchText') || undefined;
     const resourceType = searchParams.get('resourceType') || undefined;
+    const statusParam = searchParams.get('status') || undefined;
+    const status = statusParam === 'archived' || statusParam === 'active' ? statusParam : undefined;
 
     const resources = await getResources({
       searchText,
       resourceType: resourceType === 'all' ? undefined : resourceType,
+      status,
     });
 
     return NextResponse.json(resources);
