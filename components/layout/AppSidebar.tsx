@@ -164,7 +164,7 @@ export function AppSidebar({ user }: { user: SidebarUser }) {
   const showAdminSection = visibleAdminNav.length > 0
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar variant="inset" collapsible="icon">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
