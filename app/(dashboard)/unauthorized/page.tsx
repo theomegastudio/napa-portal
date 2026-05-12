@@ -14,9 +14,7 @@ export default function UnauthorizedPage() {
           You don&apos;t have permission to view this page. Contact a NAPA admin if you think this is a mistake.
         </p>
       </div>
-      <Button asChild>
-        <Link href="/">Back to Resources</Link>
-      </Button>
+      <Button render={<Link href="/" />}>Back to Resources</Button>
     </div>
   )
 }

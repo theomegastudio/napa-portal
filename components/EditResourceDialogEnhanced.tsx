@@ -209,10 +209,8 @@ export default function EditResourceDialogEnhanced({ resource, onSuccess }: Edit
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="hover:bg-gray-200">
-          <Edit className="h-4 w-4" />
-        </Button>
+      <DialogTrigger render={<Button variant="ghost" size="icon" className="hover:bg-gray-200" />}>
+        <Edit className="h-4 w-4" />
       </DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>

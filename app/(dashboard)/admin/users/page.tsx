@@ -300,10 +300,8 @@ export default function AdminUsersPage() {
                       <TableCell className="text-right">
                         {user.id !== currentUser?.id ? (
                           <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
+                            <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-8 w-8" />}>
+                              <MoreHorizontal className="h-4 w-4" />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => { setEditingUser(user); setEditForm({ email: user.email, organizationName: user.organizationName || '', isAdmin: user.isAdmin }); setEditDialogOpen(true) }}>

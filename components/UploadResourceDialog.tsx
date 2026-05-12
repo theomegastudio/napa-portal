@@ -1,7 +1,9 @@
 'use client'
 
 import { useState } from "react"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
+} from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -81,7 +83,7 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
     }
 
     setIsUploading(true)
-    setFileErrors([]) // Clear any previous errors
+    setFileErrors([])
 
     try {
       const uploadedFiles: { url: string; name: string }[] = []
@@ -91,15 +93,13 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
           const result = await uploadFile(file)
           uploadedFiles.push(result)
         } catch (uploadError) {
-          // Catch server-side validation errors
           const errorMessage = uploadError instanceof Error ? uploadError.message : "Upload failed"
           setFileErrors(prev => [...prev, `${file.name}: ${errorMessage}`])
           setIsUploading(false)
-          return // Stop upload process
+          return
         }
       }
 
-      // Create resource via API
       const response = await fetch('/api/v2/resources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -140,24 +140,22 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>
-          <Upload className="mr-2 h-4 w-4" />
-          Add Resource
-        </Button>
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm() }}>
+      <DialogTrigger render={<Button />}>
+        <Upload className="mr-2 h-4 w-4" />
+        Add Resource
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[550px]">
-        <DialogHeader className="space-y-3">
-          <DialogTitle className="text-xl">Add New Resource</DialogTitle>
-          <DialogDescription className="text-sm">
+      <DialogContent className="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>Add New Resource</DialogTitle>
+          <DialogDescription>
             Share a policy, procedure, document, or vendor information with other member organizations.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-5 mt-2">
-          <div className="space-y-2">
+        <form onSubmit={handleSubmit} className="space-y-4 mt-1">
+          <div className="space-y-1.5">
             <Label htmlFor="title" className="text-sm font-medium">
-              Title <span className="text-red-500">*</span>
+              Title <span className="text-destructive">*</span>
             </Label>
             <Input
               id="title"
@@ -165,11 +163,11 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Enter resource title"
               required
-              className="h-10 border-gray-300"
+              className="h-9"
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="description" className="text-sm font-medium">Description</Label>
             <Textarea
               id="description"
@@ -178,19 +176,17 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
               placeholder="Provide details about this resource"
               rows={3}
               maxLength={500}
-              className="resize-none border-gray-300"
+              className="resize-none"
             />
-            <p className="text-xs text-muted-foreground">
-              {description.length}/500 characters
-            </p>
+            <p className="text-xs text-muted-foreground">{description.length}/500 characters</p>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="type" className="text-sm font-medium">
-              Resource Type <span className="text-red-500">*</span>
+              Resource Type <span className="text-destructive">*</span>
             </Label>
             <Select value={resourceType} onValueChange={setResourceType} required>
-              <SelectTrigger className="h-10 border-gray-300">
+              <SelectTrigger className="h-9">
                 <SelectValue placeholder="Select type" />
               </SelectTrigger>
               <SelectContent>
@@ -202,26 +198,24 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
             </Select>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="files" className="text-sm font-medium">Add Files</Label>
             <Input
               id="files"
               type="file"
               multiple
               onChange={handleFileSelect}
-              className="h-10 cursor-pointer border-gray-300"
+              className="h-9 cursor-pointer"
               accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.gif"
             />
             <p className="text-xs text-muted-foreground">
               Max {formatFileSize(MAX_FILE_SIZE)} per file. Allowed: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, images
             </p>
             {selectedFiles.length > 0 && (
-              <p className="text-xs text-green-600">
-                ✓ {selectedFiles.length} valid file(s) selected
-              </p>
+              <p className="text-xs text-green-600">✓ {selectedFiles.length} valid file(s) selected</p>
             )}
             {fileErrors.length > 0 && (
-              <div className="text-xs text-red-600 space-y-1">
+              <div className="text-xs text-destructive space-y-1">
                 <div className="flex items-center gap-1 font-medium">
                   <AlertCircle className="h-3 w-3" />
                   <span>{fileErrors.length} file(s) rejected:</span>
@@ -233,7 +227,7 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
             )}
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="link" className="text-sm font-medium">External Link</Label>
             <Input
               id="link"
@@ -241,15 +235,15 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
               value={externalLink}
               onChange={(e) => setExternalLink(e.target.value)}
               placeholder="https://napahq.org"
-              className="h-10 border-gray-300"
+              className="h-9"
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)} className="h-10">
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isUploading} className="h-10">
+            <Button type="submit" size="sm" disabled={isUploading}>
               {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Add Resource
             </Button>

@@ -140,17 +140,15 @@ export default function NotificationBell({ isAdmin }: NotificationBellProps) {
 
   return (
     <DropdownMenu onOpenChange={(open) => open && fetchNotifications()}>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
-          {unreadCount > 0 && (
-            <Badge
-              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs bg-red-500"
-            >
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </Badge>
-          )}
-        </Button>
+      <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="relative" />}>
+        <Bell className="h-5 w-5" />
+        {unreadCount > 0 && (
+          <Badge
+            className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs bg-red-500"
+          >
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </Badge>
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80">
         <DropdownMenuLabel className="flex justify-between items-center">
@@ -217,10 +215,8 @@ export default function NotificationBell({ isAdmin }: NotificationBellProps) {
               </DropdownMenuItem>
             ))}
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild className="justify-center">
-              <Link href="/admin/approvals" className="w-full text-center text-sm">
-                View all pending approvals
-              </Link>
+            <DropdownMenuItem render={<Link href="/admin/approvals" className="w-full text-center text-sm" />} className="justify-center">
+              View all pending approvals
             </DropdownMenuItem>
           </>
         )}

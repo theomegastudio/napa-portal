@@ -12,6 +12,7 @@ import { toast } from "sonner"
 import { MagnifyingGlass, FileText, Archive } from "@phosphor-icons/react"
 import ResourceTable, { type ResourceRow } from "@/components/ResourceTable"
 import UploadResourceDialog from "@/components/UploadResourceDialog"
+import ResourceDetailDialog from "@/components/ResourceDetailDialog"
 import OrganizationSetup from "@/components/OrganizationSetup"
 import { useDebouncedCallback } from "use-debounce"
 
@@ -38,6 +39,7 @@ export default function ResourcesPage() {
   const [resourceType, setResourceType] = useState("all")
   const [showArchived, setShowArchived] = useState(false)
   const [needsOrgSetup, setNeedsOrgSetup] = useState(false)
+  const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null)
 
   const user = session?.user as ExtendedUser | undefined
   const isNapaAdmin = user?.role === 'napaAdmin'
@@ -156,6 +158,17 @@ export default function ResourcesPage() {
   }
 
   return (
+    <>
+    <ResourceDetailDialog
+      resourceId={selectedResourceId}
+      onClose={() => setSelectedResourceId(null)}
+      canManage={
+        isNapaAdmin ||
+        !!(user?.isAdmin === true)
+      }
+      onArchive={() => fetchResources(searchText, resourceType, false)}
+      onDelete={() => fetchResources(searchText, resourceType, false)}
+    />
     <div className="space-y-4">
       <div className="bg-card rounded-lg border p-4">
         <div className="flex flex-col sm:flex-row gap-3">
@@ -219,8 +232,10 @@ export default function ResourcesPage() {
           onDelete={handleDelete}
           onArchive={handleArchive}
           onEdit={() => {}}
+          onRowClick={(r) => setSelectedResourceId(r.id)}
         />
       )}
     </div>
+    </>
   )
 }

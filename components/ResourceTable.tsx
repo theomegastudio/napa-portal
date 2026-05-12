@@ -68,6 +68,7 @@ interface ResourceTableProps {
   onDelete: (id: string) => void
   onArchive: (id: string) => void
   onEdit: (resource: ResourceRow) => void
+  onRowClick?: (resource: ResourceRow) => void
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -92,6 +93,7 @@ export default function ResourceTable({
   onDelete,
   onArchive,
   onEdit,
+  onRowClick,
 }: ResourceTableProps) {
   const [sortField, setSortField] = useState<SortField>('createdAt')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -171,12 +173,21 @@ export default function ResourceTable({
                 </TableCell>
                 <TableCell>
                   <div>
-                    <Link
-                      href={`/resources/${resource.id}`}
-                      className="font-medium hover:underline hover:text-primary"
-                    >
-                      {resource.title}
-                    </Link>
+                    {onRowClick ? (
+                      <button
+                        onClick={() => onRowClick(resource)}
+                        className="font-medium hover:underline hover:text-primary text-left"
+                      >
+                        {resource.title}
+                      </button>
+                    ) : (
+                      <Link
+                        href={`/resources/${resource.id}`}
+                        className="font-medium hover:underline hover:text-primary"
+                      >
+                        {resource.title}
+                      </Link>
+                    )}
                     {resource.description && (
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                         {resource.description}
@@ -205,28 +216,30 @@ export default function ResourceTable({
                 </TableCell>
                 <TableCell className="text-right">
                   <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <DotsThree className="h-4 w-4" weight="bold" />
-                      </Button>
+                    <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-8 w-8" />}>
+                      <DotsThree className="h-4 w-4" weight="bold" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem asChild>
-                        <Link href={`/resources/${resource.id}`}>
+                      {onRowClick ? (
+                        <DropdownMenuItem onClick={() => onRowClick(resource)}>
                           <FileText className="h-4 w-4 mr-2" />View Details
-                        </Link>
-                      </DropdownMenuItem>
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem render={<Link href={`/resources/${resource.id}`} />}>
+                          <FileText className="h-4 w-4 mr-2" />View Details
+                        </DropdownMenuItem>
+                      )}
 
                       {(hasFile || hasLink) && resource.allowDownload !== false && (
-                        <DropdownMenuItem asChild>
+                        <DropdownMenuItem render={
                           <a
                             href={hasFile ? `/api/v2/resources/${resource.id}/serve` : resource.externalLink!}
                             target={hasLink ? '_blank' : undefined}
                             rel={hasLink ? 'noopener noreferrer' : undefined}
-                          >
-                            <DownloadSimple className="h-4 w-4 mr-2" />
-                            {hasFile ? 'Download' : 'Open Link'}
-                          </a>
+                          />
+                        }>
+                          <DownloadSimple className="h-4 w-4 mr-2" />
+                          {hasFile ? 'Download' : 'Open Link'}
                         </DropdownMenuItem>
                       )}
 

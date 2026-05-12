@@ -1,9 +1,10 @@
 'use client'
 
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { FileText, ExternalLink, Trash2, Download } from "lucide-react"
+import { FileText, ExternalLink, Trash2 } from "lucide-react"
 import EditResourceDialogEnhanced from "./EditResourceDialogEnhanced"
 import ResourceDetailDialog from "./ResourceDetailDialog"
 import type { Resource } from "@/lib/types"
@@ -16,6 +17,7 @@ interface ResourceCardProps {
 }
 
 export default function ResourceCard({ resource, onDelete, onUpdate, canEdit }: ResourceCardProps) {
+  const [dialogOpen, setDialogOpen] = useState(false)
     const getTypeColor = (type?: string) => {
         switch (type) {
           case 'Policy':
@@ -58,7 +60,13 @@ export default function ResourceCard({ resource, onDelete, onUpdate, canEdit }: 
     }
 
   return (
-    <ResourceDetailDialog resource={resource}>
+    <>
+    <ResourceDetailDialog
+      resourceId={dialogOpen ? resource.id : null}
+      onClose={() => setDialogOpen(false)}
+      canManage={canEdit}
+    />
+    <div onClick={() => setDialogOpen(true)}>
       <Card className="hover:shadow-lg transition-shadow cursor-pointer flex flex-col">
         <CardHeader className="flex-1">
           <div className="flex items-start justify-between">
@@ -115,6 +123,7 @@ export default function ResourceCard({ resource, onDelete, onUpdate, canEdit }: 
           </div>
         </CardContent>
       </Card>
-    </ResourceDetailDialog>
+    </div>
+    </>
   )
 }

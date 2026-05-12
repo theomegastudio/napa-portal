@@ -194,19 +194,6 @@ export const resourceVersions = pgTable('resource_versions', {
 // Approval Workflow Tables
 // ============================================
 
-// Organization domain whitelist - auto-approve users with whitelisted email domains
-export const organizationDomainWhitelist = pgTable('organization_domain_whitelist', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  organizationName: text('organization_name')
-    .notNull()
-    .references(() => organizations.organizationName, { onDelete: 'cascade' }),
-  domain: text('domain').notNull(), // e.g., 'example.edu'
-  createdBy: text('created_by')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
-
 // Approval notifications for admins
 export const approvalNotifications = pgTable('approval_notifications', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -367,7 +354,6 @@ export const usersRelations = relations(users, ({ one, many }) => ({
 export const organizationsRelations = relations(organizations, ({ many }) => ({
   users: many(users),
   resources: many(resources),
-  domainWhitelist: many(organizationDomainWhitelist),
   duesRecords: many(duesRecords),
   meetingAttendance: many(meetingAttendance),
   healthMetrics: many(orgHealthMetrics),
@@ -406,17 +392,6 @@ export const accountsRelations = relations(accounts, ({ one }) => ({
 export const sessionsRelations = relations(sessions, ({ one }) => ({
   user: one(users, {
     fields: [sessions.userId],
-    references: [users.id],
-  }),
-}));
-
-export const organizationDomainWhitelistRelations = relations(organizationDomainWhitelist, ({ one }) => ({
-  organization: one(organizations, {
-    fields: [organizationDomainWhitelist.organizationName],
-    references: [organizations.organizationName],
-  }),
-  createdByUser: one(users, {
-    fields: [organizationDomainWhitelist.createdBy],
     references: [users.id],
   }),
 }));
@@ -491,9 +466,6 @@ export type NewAuditLog = typeof auditLogs.$inferInsert;
 
 export type ResourceVersion = typeof resourceVersions.$inferSelect;
 export type NewResourceVersion = typeof resourceVersions.$inferInsert;
-
-export type OrganizationDomainWhitelist = typeof organizationDomainWhitelist.$inferSelect;
-export type NewOrganizationDomainWhitelist = typeof organizationDomainWhitelist.$inferInsert;
 
 export type ApprovalNotification = typeof approvalNotifications.$inferSelect;
 export type NewApprovalNotification = typeof approvalNotifications.$inferInsert;

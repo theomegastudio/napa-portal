@@ -5,16 +5,24 @@ import { db } from './db';
 import * as schema from './db/schema';
 import bcrypt from 'bcryptjs';
 
-// OTP verification validity in days
+/** Number of days before an OTP re-verification is required. */
 const OTP_VALIDITY_DAYS = 60;
 
-// Helper to check if email is NAPA domain
+/**
+ * Returns true if the email belongs to a NAPA staff domain (@napahq.org or @napa-online.org).
+ * Used during sign-up to automatically assign the napaAdmin role.
+ */
 export const isNapaEmail = (email: string): boolean => {
   const napaDomains = ['@napahq.org', '@napa-online.org'];
   return napaDomains.some((domain) => email.toLowerCase().endsWith(domain));
 };
 
-// Helper function to check OTP verification requirement
+/**
+ * Returns true if the user must complete an OTP email verification before accessing the dashboard.
+ * Verification expires after OTP_VALIDITY_DAYS (60) days. A null `lastVerified` always requires re-verification.
+ *
+ * Checked in both `proxy.ts` (edge redirect) and `app/(dashboard)/layout.tsx` (server component).
+ */
 export function isOTPVerificationRequired(lastVerified: Date | null): boolean {
   if (!lastVerified) return true;
   const daysSinceVerification = Math.floor(
@@ -23,12 +31,12 @@ export function isOTPVerificationRequired(lastVerified: Date | null): boolean {
   return daysSinceVerification >= OTP_VALIDITY_DAYS;
 }
 
-// Helper function to hash passwords
+/** Hashes a plaintext password with bcrypt (cost factor 12). */
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 12);
 }
 
-// Helper function to verify passwords
+/** Compares a plaintext password against a bcrypt hash. */
 export async function verifyPassword(
   password: string,
   hashedPassword: string

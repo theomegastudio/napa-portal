@@ -73,8 +73,15 @@ export default function OrganizationSetup({ onComplete }: OrganizationSetupProps
   }
 
   return (
-    <Dialog open={true}>
-      <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()}>
+    <Dialog
+      open={true}
+      disablePointerDismissal
+      onOpenChange={(_, e) => { if (e.reason === 'escape-key') e.cancel() }}
+    >
+      <DialogContent
+        className="sm:max-w-md"
+        showCloseButton={false}
+      >
         <DialogHeader>
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <Building2 className="h-6 w-6 text-primary" />

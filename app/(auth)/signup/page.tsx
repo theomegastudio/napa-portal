@@ -242,7 +242,7 @@ function SignUpForm() {
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder={loadingOrgs ? "Loading..." : "Select your organization"} />
                       </SelectTrigger>
-                      <SelectContent position="popper" sideOffset={5}>
+                      <SelectContent sideOffset={5}>
                         {organizations.length === 0 ? (
                           <div className="p-2 text-sm text-muted-foreground">No organizations available</div>
                         ) : (

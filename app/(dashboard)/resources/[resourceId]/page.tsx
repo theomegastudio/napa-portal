@@ -202,20 +202,16 @@ export default function ResourceDetailPage() {
 
           <div className="flex flex-wrap gap-2">
             {hasFile && resource.allowDownload !== false && (
-              <Button asChild>
-                <a href={`/api/v2/resources/${resource.id}/serve`}>
-                  <DownloadSimple className="h-4 w-4 mr-2" weight="bold" />
-                  Download
-                  {resource.fileSizeBytes ? ` (${formatBytes(resource.fileSizeBytes)})` : ''}
-                </a>
+              <Button render={<a href={`/api/v2/resources/${resource.id}/serve`} />}>
+                <DownloadSimple className="h-4 w-4 mr-2" weight="bold" />
+                Download
+                {resource.fileSizeBytes ? ` (${formatBytes(resource.fileSizeBytes)})` : ''}
               </Button>
             )}
 
             {resource.externalLink && (
-              <Button variant="outline" asChild>
-                <a href={resource.externalLink} target="_blank" rel="noopener noreferrer">
-                  <ArrowSquareOut className="h-4 w-4 mr-2" />Open Link
-                </a>
+              <Button variant="outline" render={<a href={resource.externalLink} target="_blank" rel="noopener noreferrer" />}>
+                <ArrowSquareOut className="h-4 w-4 mr-2" />Open Link
               </Button>
             )}
 
@@ -249,10 +245,8 @@ export default function ResourceDetailPage() {
                 <div key={file.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50">
                   <FIcon weight="duotone" className={`h-5 w-5 ${fColor}`} />
                   <span className="flex-1 text-sm truncate">{file.fileName || 'Unnamed file'}</span>
-                  <Button variant="ghost" size="sm" asChild>
-                    <a href={`/api/v2/resources/${resource.id}/serve?fileId=${file.id}`}>
-                      <DownloadSimple className="h-4 w-4" />
-                    </a>
+                  <Button variant="ghost" size="sm" render={<a href={`/api/v2/resources/${resource.id}/serve?fileId=${file.id}`} />}>
+                    <DownloadSimple className="h-4 w-4" />
                   </Button>
                 </div>
               )

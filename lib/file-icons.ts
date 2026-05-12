@@ -1,4 +1,4 @@
-// Maps MIME types and file extensions to Phosphor icon names for display
+/** Phosphor icon component name for a given file type. Use with FILE_ICON_MAP in components. */
 export type FileIconName =
   | 'FilePdf'
   | 'FileDoc'
@@ -59,6 +59,15 @@ const EXT_MAP: Record<string, FileIconName> = {
   wav: 'FileAudio',
 }
 
+/**
+ * Resolves the Phosphor icon name for a file.
+ * MIME type takes precedence over filename extension. Returns `'File'` when neither resolves.
+ *
+ * @example
+ * const iconName = getFileIconName('application/pdf', 'report.pdf') // 'FilePdf'
+ * const Icon = FILE_ICON_MAP[iconName]
+ * return <Icon weight="duotone" className={`h-5 w-5 ${getFileIconColor(iconName)}`} />
+ */
 export function getFileIconName(mimeType?: string | null, filename?: string | null): FileIconName {
   if (mimeType && MIME_MAP[mimeType]) return MIME_MAP[mimeType]
   if (filename) {
@@ -68,6 +77,10 @@ export function getFileIconName(mimeType?: string | null, filename?: string | nu
   return 'File'
 }
 
+/**
+ * Returns a Tailwind text-color class for the given file icon name.
+ * Intended for use with Phosphor icons rendered via FILE_ICON_MAP.
+ */
 export function getFileIconColor(iconName: FileIconName): string {
   switch (iconName) {
     case 'FilePdf': return 'text-red-500'

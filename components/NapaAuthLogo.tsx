@@ -21,6 +21,7 @@ export default function NapaAuthLogo({ size = 'lg', className = '' }: NapaAuthLo
         width={dimensions[size]}
         height={dimensions[size]}
         className="object-contain"
+        style={{ width: 'auto', height: 'auto' }}
         priority
       />
     </div>
