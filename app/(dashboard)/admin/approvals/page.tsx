@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { CardFrame, CardFrameFooter } from '@/components/ui/card'
 import { TablePagination } from '@/components/ui/table-pagination'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
@@ -145,8 +144,8 @@ export default function AdminApprovalsPage() {
             <p className="text-sm text-muted-foreground">All user registration requests have been processed.</p>
           </div>
         ) : (
-          <CardFrame className="w-full">
-            <Table variant="card">
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>User</TableHead>
@@ -193,15 +192,15 @@ export default function AdminApprovalsPage() {
                   ))}
                 </TableBody>
               </Table>
-            <CardFrameFooter className="p-0">
+            
               <TablePagination
                 page={page}
                 pageSize={PAGE_SIZE}
                 total={filteredUsers.length}
                 onPageChange={setPage}
               />
-            </CardFrameFooter>
-          </CardFrame>
+            
+          </div>
         )}
       </div>
 

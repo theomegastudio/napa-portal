@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { CardFrame } from '@/components/ui/card'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
@@ -19,7 +18,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger,
 } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { AlertTriangle, CalendarPlus, FileUp } from 'lucide-react'
+import { AlertTriangle, CalendarPlus, FileDown, FileUp } from 'lucide-react'
 
 type MeetingType = 'monthly' | 'annual' | 'general' | 'board' | 'committee' | 'special'
 
@@ -76,6 +75,22 @@ export default function MeetingsPage() {
   const openCreate = () => {
     setForm({ title: '', meetingType: 'monthly', meetingDate: '', notes: '' })
     setCreateOpen(true)
+  }
+
+  const exportCsv = () => {
+    const header = 'Title,Type,Date,Notes'
+    const rows = meetings.map(m => {
+      const cells = [m.title, m.meetingType, m.meetingDate.slice(0, 10), m.notes ?? '']
+      return cells.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')
+    })
+    const csv = [header, ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `meetings-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -162,6 +177,9 @@ export default function MeetingsPage() {
           <p className="text-sm text-muted-foreground">Monthly meetings, NAPAAM, and other gatherings. Click a row to manage attendance.</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={exportCsv}>
+            <FileDown className="h-4 w-4 mr-2" />Export CSV
+          </Button>
           <Button variant="outline" onClick={() => setImportOpen(true)}>
             <FileUp className="h-4 w-4 mr-2" />Import CSV
           </Button>
@@ -182,8 +200,8 @@ export default function MeetingsPage() {
           <p className="text-sm text-muted-foreground">Create a meeting or import a CSV to get started.</p>
         </div>
       ) : (
-        <CardFrame className="w-full">
-          <Table variant="card">
+        <div className="rounded-lg border bg-card overflow-hidden">
+          <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Meeting</TableHead>
@@ -225,7 +243,7 @@ export default function MeetingsPage() {
               })}
             </TableBody>
           </Table>
-        </CardFrame>
+        </div>
       )}
 
       {/* Create */}
@@ -251,10 +269,6 @@ export default function MeetingsPage() {
                     <SelectContent>
                       <SelectItem value="monthly">Monthly</SelectItem>
                       <SelectItem value="annual">NAPAAM</SelectItem>
-                      <SelectItem value="board">Board</SelectItem>
-                      <SelectItem value="committee">Committee</SelectItem>
-                      <SelectItem value="special">Special</SelectItem>
-                      <SelectItem value="general">General</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

@@ -17,7 +17,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { CardFrame, CardFrameFooter } from '@/components/ui/card'
 import { TablePagination } from '@/components/ui/table-pagination'
 import {
   DropdownMenu,
@@ -246,8 +245,8 @@ export default function OrgUsersClient({ organizationName, currentUserId }: OrgU
           </p>
         </div>
       ) : (
-        <CardFrame className="w-full">
-          <Table variant="card">
+        <div className="rounded-lg border bg-card overflow-hidden">
+          <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Email</TableHead>
@@ -311,15 +310,15 @@ export default function OrgUsersClient({ organizationName, currentUserId }: OrgU
                   ))}
                 </TableBody>
               </Table>
-          <CardFrameFooter className="p-0">
+          
             <TablePagination
               page={page}
               pageSize={PAGE_SIZE}
               total={filteredMembers.length}
               onPageChange={setPage}
             />
-          </CardFrameFooter>
-        </CardFrame>
+          
+        </div>
       )}
 
       {/* Invite Member Dialog */}

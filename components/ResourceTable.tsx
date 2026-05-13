@@ -11,7 +11,6 @@ import {
 } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { CardFrame, CardFrameFooter } from '@/components/ui/card'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -71,6 +70,8 @@ interface ResourceTableProps {
   onArchive: (id: string) => void
   onEdit: (resource: ResourceRow) => void
   onRowClick?: (resource: ResourceRow) => void
+  /** ISO timestamp from the user's previous visit. Rows newer than this get a NEW badge. */
+  lastViewedAt?: string | null
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -98,7 +99,9 @@ export default function ResourceTable({
   onArchive,
   onEdit,
   onRowClick,
+  lastViewedAt,
 }: ResourceTableProps) {
+  const lastViewed = lastViewedAt ? new Date(lastViewedAt).getTime() : null
   const [sortField, setSortField] = useState<SortField>('createdAt')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [page, setPage] = useState(0)
@@ -135,8 +138,8 @@ export default function ResourceTable({
   if (resources.length === 0) return null
 
   return (
-    <CardFrame className="w-full">
-      <Table variant="card">
+    <div className="rounded-lg border bg-card overflow-hidden">
+      <Table>
         <TableHeader>
           <TableRow>
             <TableHead className="w-10" />
@@ -187,21 +190,26 @@ export default function ResourceTable({
                 </TableCell>
                 <TableCell>
                   <div>
-                    {onRowClick ? (
-                      <button
-                        onClick={() => onRowClick(resource)}
-                        className="font-medium hover:underline hover:text-primary text-left"
-                      >
-                        {resource.title}
-                      </button>
-                    ) : (
-                      <Link
-                        href={`/resources/${resource.id}`}
-                        className="font-medium hover:underline hover:text-primary"
-                      >
-                        {resource.title}
-                      </Link>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {onRowClick ? (
+                        <button
+                          onClick={() => onRowClick(resource)}
+                          className="font-medium hover:underline hover:text-primary text-left"
+                        >
+                          {resource.title}
+                        </button>
+                      ) : (
+                        <Link
+                          href={`/resources/${resource.id}`}
+                          className="font-medium hover:underline hover:text-primary"
+                        >
+                          {resource.title}
+                        </Link>
+                      )}
+                      {lastViewed != null && new Date(resource.createdAt).getTime() > lastViewed && (
+                        <Badge className="h-4 px-1.5 text-[10px] bg-blue-600 text-white border-0">NEW</Badge>
+                      )}
+                    </div>
                     {resource.description && (
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                         {resource.description}
@@ -276,14 +284,14 @@ export default function ResourceTable({
           })}
         </TableBody>
       </Table>
-      <CardFrameFooter className="p-0">
+      
         <TablePagination
           page={page}
           pageSize={PAGE_SIZE}
           total={sorted.length}
           onPageChange={setPage}
         />
-      </CardFrameFooter>
-    </CardFrame>
+      
+    </div>
   )
 }

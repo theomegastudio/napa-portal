@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { CardFrame, CardFrameFooter } from '@/components/ui/card'
 import { TablePagination } from '@/components/ui/table-pagination'
 import { toast } from 'sonner'
 import { Loader2, SquarePen, Trash2, Search, MoreHorizontal, Users, UserPlus, Ban, ShieldCheck, Shield } from 'lucide-react'
@@ -338,8 +337,8 @@ export default function AdminUsersPage() {
             <p className="text-sm text-muted-foreground">Try adjusting your search or filters.</p>
           </div>
         ) : (
-          <CardFrame className="w-full">
-            <Table variant="card">
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>
@@ -422,15 +421,15 @@ export default function AdminUsersPage() {
                   ))}
                 </TableBody>
               </Table>
-            <CardFrameFooter className="p-0">
+            
               <TablePagination
                 page={page}
                 pageSize={PAGE_SIZE}
                 total={filteredUsers.length}
                 onPageChange={setPage}
               />
-            </CardFrameFooter>
-          </CardFrame>
+            
+          </div>
         )}
       </div>
 

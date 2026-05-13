@@ -65,6 +65,7 @@ export default function ResourcesPage() {
   const [needsOrgSetup, setNeedsOrgSetup] = useState(false)
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null)
   const [editingResource, setEditingResource] = useState<ResourceRow | null>(null)
+  const [lastViewedAt, setLastViewedAt] = useState<string | null>(null)
 
   const user = session?.user as ExtendedUser | undefined
   const isNapaAdmin = (user?.role === 'napaBoard' || user?.role === 'napaDirector')
@@ -103,7 +104,14 @@ export default function ResourcesPage() {
       setIsResourcesLoading(false)
     } else {
       setNeedsOrgSetup(false)
-      if (isInitialLoad) fetchResources(searchText, resourceType, true)
+      if (isInitialLoad) {
+        fetchResources(searchText, resourceType, true)
+        // Capture last-viewed first so NEW badges can render, then bump it.
+        fetch('/api/v2/sidebar-badges').then(r => r.ok ? r.json() : null).then(d => {
+          if (d?.lastResourcesViewedAt) setLastViewedAt(d.lastResourcesViewedAt)
+          void fetch('/api/v2/resources/mark-viewed', { method: 'POST' })
+        })
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, user, router])
@@ -267,6 +275,7 @@ export default function ResourcesPage() {
           onArchive={handleArchive}
           onEdit={(resource) => setEditingResource(resource)}
           onRowClick={(r) => setSelectedResourceId(r.id)}
+          lastViewedAt={lastViewedAt}
         />
       )}
     </div>

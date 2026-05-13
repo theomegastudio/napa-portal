@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
-import { CardFrame } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
@@ -193,8 +192,8 @@ export default function OrgDetailPage() {
             No leaders recorded yet.
           </div>
         ) : (
-          <CardFrame className="w-full">
-            <Table variant="card">
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
@@ -220,7 +219,7 @@ export default function OrgDetailPage() {
                 ))}
               </TableBody>
             </Table>
-          </CardFrame>
+          </div>
         )}
       </section>
 
@@ -231,8 +230,8 @@ export default function OrgDetailPage() {
             No meetings attended this year.
           </div>
         ) : (
-          <CardFrame className="w-full">
-            <Table variant="card">
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Title</TableHead>
@@ -252,7 +251,7 @@ export default function OrgDetailPage() {
                 ))}
               </TableBody>
             </Table>
-          </CardFrame>
+          </div>
         )}
       </section>
 

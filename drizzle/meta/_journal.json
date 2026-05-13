@@ -43,6 +43,20 @@
       "when": 1778706951691,
       "tag": "0005_salty_archangel",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778709977095,
+      "tag": "0006_whole_doctor_spectrum",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1778710251985,
+      "tag": "0007_fancy_bulldozer",
+      "breakpoints": true
     }
   ]
 }

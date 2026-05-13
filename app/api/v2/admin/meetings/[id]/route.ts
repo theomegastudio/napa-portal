@@ -40,10 +40,14 @@ export async function PATCH(
       await db.update(meetings).set(updates).where(eq(meetings.id, id))
     }
 
-    // attendance: array of { organizationName, attended } — upsert each
+    // attendance: array of { organizationName, attended, attendeeCount? } — upsert each.
+    // attendeeCount overrides attended when present (count > 0 implies attended).
     if (Array.isArray(attendance)) {
       for (const a of attendance) {
-        if (typeof a?.organizationName !== 'string' || typeof a?.attended !== 'boolean') continue
+        if (typeof a?.organizationName !== 'string') continue
+        const hasCount = typeof a.attendeeCount === 'number' && a.attendeeCount >= 0
+        const attended = hasCount ? a.attendeeCount > 0 : a?.attended === true
+        const count = hasCount ? Math.floor(a.attendeeCount as number) : (attended ? 1 : 0)
         const existing = await db.query.meetingAttendance.findFirst({
           where: and(
             eq(meetingAttendance.meetingId, id),
@@ -52,13 +56,14 @@ export async function PATCH(
         })
         if (existing) {
           await db.update(meetingAttendance)
-            .set({ attended: a.attended, recordedBy: user.id })
+            .set({ attended, attendeeCount: count, recordedBy: user.id })
             .where(eq(meetingAttendance.id, existing.id))
         } else {
           await db.insert(meetingAttendance).values({
             meetingId: id,
             organizationName: a.organizationName,
-            attended: a.attended,
+            attended,
+            attendeeCount: count,
             recordedBy: user.id,
           })
         }

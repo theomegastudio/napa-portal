@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "last_resources_viewed_at" timestamp with time zone;

@@ -1,13 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationNext,
-  PaginationPrevious,
-} from '@/components/ui/pagination'
+import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
 
 interface TablePaginationProps {
   page: number
@@ -17,9 +11,8 @@ interface TablePaginationProps {
 }
 
 /**
- * Footer for tables built with Coss `<Table variant="card">`.
- * Shows "X-Y of N" on the left and Prev/Next on the right.
- * `page` is zero-indexed.
+ * Pagination footer for shadcn tables. Shows "X-Y of N" + Prev/Next buttons.
+ * Buttons clearly indicate enabled vs disabled state. `page` is zero-indexed.
  */
 export function TablePagination({ page, pageSize, total, onPageChange }: TablePaginationProps) {
   if (total === 0) return null
@@ -30,41 +23,31 @@ export function TablePagination({ page, pageSize, total, onPageChange }: TablePa
   const canNext = page < pageCount - 1
 
   return (
-    <div className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+    <div className="flex items-center justify-between gap-2 border-t bg-card px-3 py-2 text-sm">
       <p className="text-muted-foreground tabular-nums">
         <strong className="font-medium text-foreground">{start}-{end}</strong> of{' '}
         <strong className="font-medium text-foreground">{total}</strong>
       </p>
-      <Pagination className="mx-0 w-auto">
-        <PaginationContent>
-          <PaginationItem>
-            <PaginationPrevious
-              className="sm:*:[svg]:hidden"
-              render={
-                <Button
-                  disabled={!canPrev}
-                  onClick={() => canPrev && onPageChange(page - 1)}
-                  size="sm"
-                  variant="outline"
-                />
-              }
-            />
-          </PaginationItem>
-          <PaginationItem>
-            <PaginationNext
-              className="sm:*:[svg]:hidden"
-              render={
-                <Button
-                  disabled={!canNext}
-                  onClick={() => canNext && onPageChange(page + 1)}
-                  size="sm"
-                  variant="outline"
-                />
-              }
-            />
-          </PaginationItem>
-        </PaginationContent>
-      </Pagination>
+      <div className="flex items-center gap-1">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!canPrev}
+          onClick={() => canPrev && onPageChange(page - 1)}
+        >
+          <ChevronLeftIcon className="h-4 w-4" />
+          <span>Previous</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!canNext}
+          onClick={() => canNext && onPageChange(page + 1)}
+        >
+          <span>Next</span>
+          <ChevronRightIcon className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   )
 }

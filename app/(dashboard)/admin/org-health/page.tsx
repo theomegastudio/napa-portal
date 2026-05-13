@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Card, CardContent, CardHeader, CardTitle, CardFrame } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -55,6 +55,7 @@ interface HealthData {
   annualMeetingCount: number
   lowAttendanceMonthly: LowMeeting[]
   minAttendeesPerMeeting: number
+  duesTarget: number | null
 }
 
 function ScoreBadge({ score }: { score: number }) {
@@ -179,6 +180,10 @@ export default function OrgHealthPage() {
         </div>
       </div>
 
+      <DuesTargetStrip year={parseInt(year)} target={data?.duesTarget ?? null} onChange={fetchData} />
+      <ScoreBreakdown />
+
+
       {loading ? (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -241,8 +246,8 @@ export default function OrgHealthPage() {
               <h3 className="font-semibold mb-1">No organizations found</h3>
             </div>
           ) : (
-            <CardFrame className="w-full">
-              <Table variant="card">
+            <div className="rounded-lg border bg-card overflow-hidden">
+              <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>
@@ -311,7 +316,7 @@ export default function OrgHealthPage() {
                   ))}
                 </TableBody>
               </Table>
-            </CardFrame>
+            </div>
           )}
         </>
       )}
@@ -486,5 +491,112 @@ function DuesDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function DuesTargetStrip({
+  year,
+  target,
+  onChange,
+}: {
+  year: number
+  target: number | null
+  onChange: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(String(target ?? ''))
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => { setValue(String(target ?? '')) }, [target, year])
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/v2/admin/dues-target', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year, amount: parseFloat(value) || 0 }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      toast.success('Dues target saved')
+      setEditing(false)
+      onChange()
+    } catch {
+      toast.error('Failed to save dues target')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2 text-sm">
+      <DollarSign className="h-4 w-4 text-muted-foreground" />
+      <div className="flex-1">
+        <span className="font-medium">Annual dues target for {year}:</span>{' '}
+        {editing ? (
+          <span className="inline-flex items-center gap-2">
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              className="h-7 w-32 inline-flex"
+              autoFocus
+            />
+            <Button size="sm" onClick={save} disabled={saving}>{saving ? 'Saving' : 'Save'}</Button>
+            <Button size="sm" variant="outline" onClick={() => { setEditing(false); setValue(String(target ?? '')) }}>Cancel</Button>
+          </span>
+        ) : (
+          <span className="tabular-nums">
+            {target != null ? `$${target.toFixed(2)}` : <span className="text-muted-foreground">not set</span>}
+            <Button size="sm" variant="ghost" className="ml-2 h-7" onClick={() => setEditing(true)}>Edit</Button>
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ScoreBreakdown() {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+      >
+        How is the score calculated?
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Engagement score breakdown</DialogTitle>
+            <DialogDescription>Each dimension is worth 20 points. Total is 0–100.</DialogDescription>
+          </DialogHeader>
+          <ul className="space-y-2 text-sm">
+            <li>
+              <strong>Monthly meetings — 20 pts.</strong> Per meeting: 2+ attendees = full credit,
+              1 attendee = half credit, 0 = none. Average across all monthly meetings this year × 20.
+            </li>
+            <li>
+              <strong>NAPAAM — 20 pts.</strong> 2+ attendees from the org = 20, 1 = 10, 0 = 0.
+            </li>
+            <li>
+              <strong>Renewal &amp; Certification — 20 pts.</strong> Complete or not.
+            </li>
+            <li>
+              <strong>Dues — 20 pts.</strong> Fully paid = 20, partial payment = 10, unpaid = 0.
+            </li>
+            <li>
+              <strong>1×1 with NAPA — 20 pts.</strong> Complete or not.
+            </li>
+          </ul>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

@@ -92,6 +92,8 @@ export const users = pgTable('users', {
   // BetterAuth admin plugin fields
   role: text('role').default('user').notNull(), // 'user', 'admin', 'napaBoard', 'napaDirector'
   canViewOrgHealth: boolean('can_view_org_health').default(false).notNull(),
+  /** Last time this user opened the Resources page; drives the "new" badge counter. */
+  lastResourcesViewedAt: timestamp('last_resources_viewed_at', { withTimezone: true }),
   banned: boolean('banned').default(false),
   banReason: text('ban_reason'),
   banExpires: timestamp('ban_expires', { withTimezone: true }),
@@ -247,6 +249,20 @@ export const duesPayments = pgTable('dues_payments', {
   notes: text('notes'),
   recordedBy: text('recorded_by').references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Per-year platform settings (currently just the annual dues target that applies
+ * to all member orgs). One row per year. NAPA Board writes; visible to anyone
+ * who can see Org Health.
+ */
+export const platformDuesTargets = pgTable('platform_dues_targets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  year: integer('year').notNull().unique(),
+  amountCents: integer('amount_cents').notNull(),
+  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 /**

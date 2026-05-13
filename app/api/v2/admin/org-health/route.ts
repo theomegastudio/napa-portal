@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { organizations, duesRecords, duesPayments, meetingAttendance, meetings, orgYearlyCompliance } from '@/lib/db/schema'
+import { organizations, duesRecords, meetingAttendance, meetings, orgYearlyCompliance, platformDuesTargets } from '@/lib/db/schema'
 import { and, eq, gte, lt, ne, sql } from 'drizzle-orm'
 
 const NAPA_ORG_NAME = 'National APIDA Panhellenic Association'
@@ -49,6 +49,12 @@ export async function GET(request: NextRequest) {
   })
   const duesMap = new Map(dues.map((d) => [d.organizationName, d]))
 
+  // Platform-wide annual dues target — applies to any org without its own record.
+  const platformTarget = await db.query.platformDuesTargets.findFirst({
+    where: eq(platformDuesTargets.year, year),
+  })
+  const platformTargetCents = platformTarget?.amountCents ?? 0
+
   // Meetings this year, split by type.
   const yearMeetings = await db.query.meetings.findMany({
     where: and(gte(meetings.meetingDate, yearStart), lt(meetings.meetingDate, yearEnd)),
@@ -56,24 +62,17 @@ export async function GET(request: NextRequest) {
   const monthlyMeetings = yearMeetings.filter((m) => m.meetingType === 'monthly')
   const annualMeetings = yearMeetings.filter((m) => m.meetingType === 'annual')
 
-  // Attendance for this year's meetings. For monthly we only need a boolean
-  // ("attended this meeting"); for NAPAAM (annual) we track an attendeeCount per org.
+  // Attendance for this year's meetings. We track attendeeCount per (meeting, org)
+  // and use it to derive scores: 2+ = full credit, 1 = half credit, 0 = none.
   const meetingIds = yearMeetings.map((m) => m.id)
   const allAttendance = meetingIds.length
     ? await db.query.meetingAttendance.findMany()
     : []
-  const attendanceByMeeting = new Map<string, Set<string>>() // attended=true rows
-  const annualCountsByMeeting = new Map<string, Map<string, number>>() // meetingId -> org -> count
+  const countsByMeeting = new Map<string, Map<string, number>>() // meetingId -> org -> count
   for (const a of allAttendance) {
     if (!meetingIds.includes(a.meetingId)) continue
-    if (a.attended) {
-      if (!attendanceByMeeting.has(a.meetingId)) attendanceByMeeting.set(a.meetingId, new Set())
-      attendanceByMeeting.get(a.meetingId)!.add(a.organizationName)
-    }
-    if (a.attendeeCount > 0) {
-      if (!annualCountsByMeeting.has(a.meetingId)) annualCountsByMeeting.set(a.meetingId, new Map())
-      annualCountsByMeeting.get(a.meetingId)!.set(a.organizationName, a.attendeeCount)
-    }
+    if (!countsByMeeting.has(a.meetingId)) countsByMeeting.set(a.meetingId, new Map())
+    countsByMeeting.get(a.meetingId)!.set(a.organizationName, a.attendeeCount ?? 0)
   }
 
   // Per-org annual compliance for this year (renewal + 1x1).
@@ -82,32 +81,37 @@ export async function GET(request: NextRequest) {
   })
   const complianceMap = new Map(compliance.map((c) => [c.organizationName, c]))
 
-  // Low-attendance meetings (< MIN_ATTENDEES_PER_MEETING attendees, monthly only).
+  // Low-attendance meetings: any monthly meeting where total attendee count
+  // across all orgs is below MIN_ATTENDEES_PER_MEETING.
   const lowAttendanceMonthly = monthlyMeetings
-    .map((m) => ({
-      id: m.id,
-      title: m.title,
-      meetingDate: m.meetingDate,
-      attendeeCount: attendanceByMeeting.get(m.id)?.size ?? 0,
-    }))
+    .map((m) => {
+      const counts = countsByMeeting.get(m.id)
+      const total = counts ? Array.from(counts.values()).reduce((s, n) => s + n, 0) : 0
+      return { id: m.id, title: m.title, meetingDate: m.meetingDate, attendeeCount: total }
+    })
     .filter((m) => m.attendeeCount < MIN_ATTENDEES_PER_MEETING)
 
   const result = orgs.map((org) => {
     const memberCount = org.memberCount ?? 0
     const duesRecord = duesMap.get(org.organizationName)
-    const duesTargetCents = duesRecord?.amountCents ?? 0
+    const duesTargetCents = duesRecord?.amountCents ?? platformTargetCents
     const paidCents = (duesRecord?.payments ?? []).reduce((s, p) => s + p.amountCents, 0)
     const duesPaid = duesTargetCents > 0 && paidCents >= duesTargetCents
     const duesPartial = paidCents > 0 && !duesPaid
 
-    const monthlyAttended = monthlyMeetings.filter((m) =>
-      attendanceByMeeting.get(m.id)?.has(org.organizationName)
-    ).length
+    // Monthly: per-meeting credit by attendee_count. 2+ = 1.0, 1 = 0.5, 0 = 0.
+    let monthlyCreditSum = 0
+    let monthlyAttended = 0
+    for (const m of monthlyMeetings) {
+      const c = countsByMeeting.get(m.id)?.get(org.organizationName) ?? 0
+      if (c >= 2) { monthlyCreditSum += 1; monthlyAttended++ }
+      else if (c === 1) { monthlyCreditSum += 0.5; monthlyAttended++ }
+    }
 
     // NAPAAM attendees: sum count across all annual meetings this year for this org.
     let napaamAttendees = 0
     for (const m of annualMeetings) {
-      napaamAttendees += annualCountsByMeeting.get(m.id)?.get(org.organizationName) ?? 0
+      napaamAttendees += countsByMeeting.get(m.id)?.get(org.organizationName) ?? 0
     }
 
     const c = complianceMap.get(org.organizationName)
@@ -116,7 +120,7 @@ export async function GET(request: NextRequest) {
 
     // Engagement score (0-100): 5 equal-weighted dimensions, 20pts each.
     const monthlyScore = monthlyMeetings.length > 0
-      ? Math.round((monthlyAttended / monthlyMeetings.length) * 20)
+      ? Math.round((monthlyCreditSum / monthlyMeetings.length) * 20)
       : 20 // no meetings yet = no penalty
     // NAPAAM: 2+ attendees = full 20, 1 attendee = 10, 0 attendees = 0.
     const napaamScore = napaamAttendees >= 2 ? 20 : napaamAttendees === 1 ? 10 : 0
@@ -158,5 +162,6 @@ export async function GET(request: NextRequest) {
     annualMeetingCount: annualMeetings.length,
     lowAttendanceMonthly,
     minAttendeesPerMeeting: MIN_ATTENDEES_PER_MEETING,
+    duesTarget: platformTargetCents > 0 ? platformTargetCents / 100 : null,
   })
 }

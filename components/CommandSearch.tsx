@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from '@/lib/auth-client'
 import {
   CommandDialog, CommandEmpty, CommandGroup, CommandInput,
   CommandItem, CommandList, CommandSeparator,
@@ -43,15 +44,26 @@ interface SearchResult {
   externalLink?: string | null
 }
 
-const NAV_PAGES: NavPage[] = [
-  { id: 'home', title: 'Resources', subtitle: 'Browse all resources', href: '/', icon: Home },
-  { id: 'profile', title: 'Profile Settings', subtitle: 'Account and password', href: '/profile', icon: Settings },
-  { id: 'approvals', title: 'Pending Approvals', subtitle: 'Review new users', href: '/admin/approvals', icon: UserCheck },
-  { id: 'org-users', title: 'Org Users', subtitle: 'Manage your organization’s users', href: '/admin/org-users', icon: Users },
-  { id: 'users', title: 'Manage Users', subtitle: 'All platform users', href: '/admin/users', icon: Shield },
-  { id: 'org-health', title: 'Org Health', subtitle: 'Engagement metrics', href: '/admin/org-health', icon: Activity },
-  { id: 'meetings', title: 'Meetings', subtitle: 'Schedule meetings and track attendance', href: '/admin/meetings', icon: Activity },
-  { id: 'audit', title: 'Audit Log', subtitle: 'Activity history', href: '/admin/audit', icon: ScrollText },
+interface NavPageWithGate extends NavPage {
+  /** Visible to anyone (default true). */
+  always?: boolean
+  /** Org admins + NAPA staff. */
+  adminOnly?: boolean
+  /** NAPA staff (Board or Director). */
+  napaOnly?: boolean
+  /** NAPA Board only. */
+  napaBoardOnly?: boolean
+}
+
+const NAV_PAGES: NavPageWithGate[] = [
+  { id: 'home', title: 'Resources', subtitle: 'Browse all resources', href: '/', icon: Home, always: true },
+  { id: 'profile', title: 'Profile Settings', subtitle: 'Account and password', href: '/profile', icon: Settings, always: true },
+  { id: 'approvals', title: 'Pending Approvals', subtitle: 'Review new users', href: '/admin/approvals', icon: UserCheck, adminOnly: true },
+  { id: 'org-users', title: 'Org Users', subtitle: 'Manage your organization’s users', href: '/admin/org-users', icon: Users, adminOnly: true },
+  { id: 'users', title: 'Manage Users', subtitle: 'All platform users', href: '/admin/users', icon: Shield, napaOnly: true },
+  { id: 'org-health', title: 'Org Health', subtitle: 'Engagement metrics', href: '/admin/org-health', icon: Activity, napaOnly: true },
+  { id: 'meetings', title: 'Meetings', subtitle: 'Schedule meetings and track attendance', href: '/admin/meetings', icon: Activity, napaOnly: true },
+  { id: 'audit', title: 'Audit Log', subtitle: 'Activity history', href: '/admin/audit', icon: ScrollText, adminOnly: true },
 ]
 
 function ResultIcon({ result }: { result: SearchResult }) {
@@ -75,6 +87,18 @@ function NavIcon({ icon: Icon }: { icon: React.ElementType }) {
 
 export default function CommandSearch() {
   const router = useRouter()
+  const { data: session } = useSession()
+  const sessionUser = session?.user as { role?: string; isAdmin?: boolean } | undefined
+  const isNapaBoard = sessionUser?.role === 'napaBoard'
+  const isNapa = isNapaBoard || sessionUser?.role === 'napaDirector'
+  const isOrgAdmin = !!sessionUser?.isAdmin
+  const visiblePages = NAV_PAGES.filter(p => {
+    if (p.napaBoardOnly) return isNapaBoard
+    if (p.napaOnly) return isNapa
+    if (p.adminOnly) return isNapa || isOrgAdmin
+    return true
+  })
+
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
@@ -121,7 +145,7 @@ export default function CommandSearch() {
   }, [router])
 
   const filteredPages = query.length > 0
-    ? NAV_PAGES.filter(p =>
+    ? visiblePages.filter(p =>
         p.title.toLowerCase().includes(query.toLowerCase()) ||
         p.subtitle.toLowerCase().includes(query.toLowerCase())
       )
@@ -201,7 +225,7 @@ export default function CommandSearch() {
 
           {!query && (
             <CommandGroup heading="Quick Navigation">
-              {NAV_PAGES.slice(0, 6).map(page => (
+              {visiblePages.slice(0, 6).map(page => (
                 <CommandItem
                   key={page.id}
                   value={page.title}

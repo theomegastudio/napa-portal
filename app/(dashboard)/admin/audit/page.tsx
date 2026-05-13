@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { CardFrame } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
@@ -208,8 +207,8 @@ export default function AuditLogPage() {
         </div>
       ) : (
         <>
-          <CardFrame className="w-full">
-            <Table variant="card">
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Timestamp</TableHead>
@@ -243,7 +242,7 @@ export default function AuditLogPage() {
                 ))}
               </TableBody>
             </Table>
-          </CardFrame>
+          </div>
 
           {totalPages > 1 && (
             <div className="flex items-center justify-between">

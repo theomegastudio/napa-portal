@@ -5,12 +5,10 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
-import { CardFrame } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -83,21 +81,23 @@ export default function MeetingDetailPage() {
 
   useEffect(() => { fetchAll() }, [id])
 
-  const toggleAttended = async (organizationName: string, attended: boolean) => {
+  const setAttendeeCount = async (organizationName: string, count: number) => {
     if (!meeting) return
+    if (count < 0 || !Number.isFinite(count)) return
+    const attended = count > 0
     setMeeting({
       ...meeting,
       attendance: (() => {
         const existing = meeting.attendance.find(a => a.organizationName === organizationName)
-        if (existing) return meeting.attendance.map(a => a.organizationName === organizationName ? { ...a, attended } : a)
-        return [...meeting.attendance, { id: 'optimistic', organizationName, attended, attendeeCount: 0 }]
+        if (existing) return meeting.attendance.map(a => a.organizationName === organizationName ? { ...a, attended, attendeeCount: count } : a)
+        return [...meeting.attendance, { id: 'optimistic', organizationName, attended, attendeeCount: count }]
       })(),
     })
     try {
       const res = await fetch(`/api/v2/admin/meetings/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attendance: [{ organizationName, attended }] }),
+        body: JSON.stringify({ attendance: [{ organizationName, attended, attendeeCount: count }] }),
       })
       if (!res.ok) throw new Error('Failed')
     } catch {
@@ -164,7 +164,7 @@ export default function MeetingDetailPage() {
       </Button>
 
       {editing ? (
-        <CardFrame className="p-4 space-y-3">
+        <div className="rounded-lg border bg-card p-4 space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="t">Title</Label>
             <Input id="t" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
@@ -197,7 +197,7 @@ export default function MeetingDetailPage() {
             <Button variant="outline" onClick={() => setEditing(false)} disabled={saving}>Cancel</Button>
             <Button onClick={saveDetails} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
           </div>
-        </CardFrame>
+        </div>
       ) : (
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
@@ -217,17 +217,18 @@ export default function MeetingDetailPage() {
         </div>
       )}
 
-      <CardFrame className="w-full">
-        <Table variant="card">
+      <div className="rounded-lg border bg-card overflow-hidden">
+        <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Organization</TableHead>
-              <TableHead className="w-28 text-center">Attended</TableHead>
+              <TableHead className="w-32 text-center">Attendees</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {orgs.map(org => {
-              const attended = meeting.attendance.find(a => a.organizationName === org.organizationName)?.attended ?? false
+              const a = meeting.attendance.find(a => a.organizationName === org.organizationName)
+              const count = a?.attendeeCount ?? 0
               return (
                 <TableRow key={org.organizationName}>
                   <TableCell>
@@ -236,10 +237,13 @@ export default function MeetingDetailPage() {
                     </Link>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Checkbox
-                      checked={attended}
-                      onCheckedChange={(v) => toggleAttended(org.organizationName, !!v)}
-                      aria-label={`${org.organizationName} attended ${meeting.title}`}
+                    <Input
+                      type="number"
+                      min={0}
+                      value={count}
+                      onChange={(e) => setAttendeeCount(org.organizationName, Math.max(0, parseInt(e.target.value || '0', 10)))}
+                      className="h-8 w-20 text-center tabular-nums mx-auto"
+                      aria-label={`${org.organizationName} attendees at ${meeting.title}`}
                     />
                   </TableCell>
                 </TableRow>
@@ -247,7 +251,7 @@ export default function MeetingDetailPage() {
             })}
           </TableBody>
         </Table>
-      </CardFrame>
+      </div>
 
       <Dialog open={deleting} onOpenChange={setDeleting}>
         <DialogContent>

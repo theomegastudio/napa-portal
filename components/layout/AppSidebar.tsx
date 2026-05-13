@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { signOut } from '@/lib/auth-client'
@@ -11,8 +12,6 @@ import {
 import NapaPortalLogo from '@/components/NapaPortalLogo'
 import CommandSearch from '@/components/CommandSearch'
 import UserAvatar from '@/components/UserAvatar'
-import ThemeToggle from '@/components/ThemeToggle'
-import NotificationBell from '@/components/NotificationBell'
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup,
   SidebarGroupContent, SidebarGroupLabel, SidebarHeader,
@@ -66,13 +65,12 @@ const adminNav: NavItem[] = [
   { title: 'Approvals', href: '/admin/approvals', icon: UserCheck, adminOnly: true },
   { title: 'Org Users', href: '/admin/org-users', icon: Users, adminOnly: true },
   { title: 'Users', href: '/admin/users', icon: Shield, napaAdminOnly: true },
-  { title: 'Organizations', href: '/admin/organizations', icon: Building2, napaBoardOnly: true },
   { title: 'Org Health', href: '/admin/org-health', icon: Activity, orgHealthGated: true },
   { title: 'Meetings', href: '/admin/meetings', icon: CalendarDays, orgHealthGated: true },
   { title: 'Audit Log', href: '/admin/audit', icon: ScrollText, adminOnly: true },
 ]
 
-function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
+function NavLink({ item, pathname, badge }: { item: NavItem; pathname: string; badge?: number }) {
   const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
 
   if (item.comingSoon) {
@@ -95,6 +93,11 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
       <SidebarMenuButton render={<Link href={item.href} />} isActive={isActive} tooltip={item.title}>
         <item.icon className="h-4 w-4" />
         <span>{item.title}</span>
+        {badge !== undefined && badge > 0 && (
+          <Badge className="ml-auto h-4 min-w-4 px-1 text-[10px] tabular-nums bg-blue-600 text-white border-0">
+            {badge}
+          </Badge>
+        )}
       </SidebarMenuButton>
     </SidebarMenuItem>
   )
@@ -169,6 +172,25 @@ function NavUser({ user }: { user: SidebarUser }) {
 
 export function AppSidebar({ user }: { user: SidebarUser }) {
   const pathname = usePathname()
+  const [badges, setBadges] = useState<{ newResourcesCount: number; approvalsCount: number }>({
+    newResourcesCount: 0,
+    approvalsCount: 0,
+  })
+
+  useEffect(() => {
+    let cancelled = false
+    const fetchBadges = async () => {
+      try {
+        const res = await fetch('/api/v2/sidebar-badges')
+        if (!res.ok) return
+        const data = await res.json()
+        if (!cancelled) setBadges(data)
+      } catch { /* ignore */ }
+    }
+    fetchBadges()
+    const interval = setInterval(fetchBadges, 60_000) // refresh every minute
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [pathname])
 
   const visibleAdminNav = adminNav.filter(item => {
     if (item.napaBoardOnly) return user.isNapaBoard
@@ -179,6 +201,12 @@ export function AppSidebar({ user }: { user: SidebarUser }) {
   })
 
   const showAdminSection = visibleAdminNav.length > 0
+
+  const badgeFor = (href: string): number | undefined => {
+    if (href === '/') return badges.newResourcesCount || undefined
+    if (href === '/admin/approvals') return badges.approvalsCount || undefined
+    return undefined
+  }
 
   return (
     <Sidebar variant="inset" collapsible="icon">
@@ -208,7 +236,7 @@ export function AppSidebar({ user }: { user: SidebarUser }) {
           <SidebarGroupContent>
             <SidebarMenu>
               {mainNav.map(item => (
-                <NavLink key={item.href} item={item} pathname={pathname} />
+                <NavLink key={item.href} item={item} pathname={pathname} badge={badgeFor(item.href)} />
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
@@ -220,7 +248,7 @@ export function AppSidebar({ user }: { user: SidebarUser }) {
             <SidebarGroupContent>
               <SidebarMenu>
                 {visibleAdminNav.map(item => (
-                  <NavLink key={item.href} item={item} pathname={pathname} />
+                  <NavLink key={item.href} item={item} pathname={pathname} badge={badgeFor(item.href)} />
                 ))}
               </SidebarMenu>
             </SidebarGroupContent>
@@ -229,10 +257,6 @@ export function AppSidebar({ user }: { user: SidebarUser }) {
       </SidebarContent>
 
       <SidebarFooter>
-        <div className="flex items-center gap-1 px-2 py-1 group-data-[collapsible=icon]:hidden">
-          <ThemeToggle />
-          <NotificationBell isAdmin={user.isAdmin || user.isNapaAdmin} />
-        </div>
         <NavUser user={user} />
       </SidebarFooter>
     </Sidebar>
