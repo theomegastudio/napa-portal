@@ -46,7 +46,7 @@ export default function AuditLogPage() {
   const [endDate, setEndDate] = useState("")
   const [page, setPage] = useState(0)
 
-  const isNapaUser = user?.role === 'napaAdmin'
+  const isNapaUser = (user?.role === 'napaBoard' || user?.role === 'napaDirector')
   const ITEMS_PER_PAGE = 50
 
   useEffect(() => {

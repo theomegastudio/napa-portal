@@ -17,8 +17,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const user = session.user as unknown as SessionUser
-  if (user.role !== 'napaAdmin' && !user.isAdmin) {
+  const user = session.user as unknown as SessionUser & { canViewOrgHealth?: boolean }
+  const allowed =
+    user.role === 'napaBoard' ||
+    (user.role === 'napaDirector' && !!user.canViewOrgHealth)
+  if (!allowed) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

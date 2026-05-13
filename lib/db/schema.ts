@@ -84,7 +84,8 @@ export const users = pgTable('users', {
   image: text('image'),
 
   // BetterAuth admin plugin fields
-  role: text('role').default('user').notNull(), // 'user', 'admin', 'napaAdmin'
+  role: text('role').default('user').notNull(), // 'user', 'admin', 'napaBoard', 'napaDirector'
+  canViewOrgHealth: boolean('can_view_org_health').default(false).notNull(),
   banned: boolean('banned').default(false),
   banReason: text('ban_reason'),
   banExpires: timestamp('ban_expires', { withTimezone: true }),

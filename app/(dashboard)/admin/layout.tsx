@@ -16,7 +16,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const user = session.user as unknown as SessionUser
   const isAdmin = user.isAdmin ?? false
-  const isNapaAdmin = user.role === 'napaAdmin'
+  const isNapaAdmin = (user.role === 'napaBoard' || user.role === 'napaDirector')
 
   if (!isAdmin && !isNapaAdmin) {
     redirect('/unauthorized')

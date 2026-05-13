@@ -38,12 +38,12 @@ export async function getOrgAdminsForOrg(organizationName: string): Promise<User
 }
 
 /**
- * Get all NAPA admins
+ * Get NAPA Board users (the approvers). Directors are read-only and don't approve.
  */
 export async function getNapaAdmins(): Promise<User[]> {
   const napaAdmins = await db.query.users.findMany({
     where: and(
-      eq(users.role, 'napaAdmin'),
+      eq(users.role, 'napaBoard'),
       eq(users.approvalStatus, 'approved')
     ),
   });

@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
     // Only NAPA emails are auto-approved, all others require approval
     const approvalStatus: 'pending' | 'approved' = isNapaEmail ? 'approved' : 'pending';
 
-    // Role defaults to 'user' — napaAdmin role is only granted manually by existing NAPA admins
+    // Role defaults to 'user' — napaBoard/napaDirector roles are granted manually by an existing NAPA Board member
     const role = 'user';
 
     // Create user (BetterAuth compatible)

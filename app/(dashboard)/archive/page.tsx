@@ -23,7 +23,7 @@ export default function ArchivePage() {
   const router = useRouter()
   const { data: session, isPending } = useSession()
   const user = session?.user as ExtendedUser | undefined
-  const isNapaAdmin = user?.role === 'napaAdmin'
+  const isNapaAdmin = (user?.role === 'napaBoard' || user?.role === 'napaDirector')
   const isAdmin = user?.isAdmin === true
 
   const [resources, setResources] = useState<ResourceRow[]>([])

@@ -42,7 +42,7 @@ export default function ResourcesPage() {
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null)
 
   const user = session?.user as ExtendedUser | undefined
-  const isNapaAdmin = user?.role === 'napaAdmin'
+  const isNapaAdmin = (user?.role === 'napaBoard' || user?.role === 'napaDirector')
 
   const fetchResources = async (search?: string, type?: string, showLoading = true) => {
     try {

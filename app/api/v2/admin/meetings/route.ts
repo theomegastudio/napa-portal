@@ -16,7 +16,8 @@ export async function GET() {
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const user = session.user as unknown as SessionUser
-  if (user.role !== 'napaAdmin' && !user.isAdmin) {
+  const isNapa = user.role === 'napaBoard' || user.role === 'napaDirector'
+  if (!isNapa && !user.isAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const user = session.user as unknown as SessionUser
-  if (user.role !== 'napaAdmin') {
+  if (user.role !== 'napaBoard' && user.role !== 'napaDirector') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

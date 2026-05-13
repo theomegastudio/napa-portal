@@ -6,6 +6,7 @@ import { resources, resourceFiles } from '@/lib/db/schema'
 import { eq, and, isNull } from 'drizzle-orm'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { createAuditLog } from '@/lib/services-drizzle/audit'
 
 const r2Client = new S3Client({
   region: 'auto',
@@ -75,6 +76,17 @@ export async function GET(
       new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }),
       { expiresIn: 300 } // 5 minutes
     )
+    // Log the download (fire-and-forget; audit failures don't block the redirect)
+    void createAuditLog({
+      userId: session.user.id,
+      userEmail: session.user.email,
+      organization: resource.organization,
+      action: 'downloaded',
+      resourceId: resource.id,
+      resourceTitle: resource.title,
+      resourceType: resource.resourceType,
+      metadata: fileId ? { fileId } : undefined,
+    })
     return NextResponse.redirect(signedUrl)
   } catch {
     // Signed URL generation failed — fall back to public URL

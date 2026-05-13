@@ -80,7 +80,7 @@ export default function ResourceDetailPage() {
   const [loading, setLoading] = useState(true)
 
   const user = session?.user as ExtendedUser | undefined
-  const isNapaAdmin = user?.role === 'napaAdmin'
+  const isNapaAdmin = (user?.role === 'napaBoard' || user?.role === 'napaDirector')
   const isOrgAdmin = user?.isAdmin === true
   const canManage = isNapaAdmin || (isOrgAdmin && user?.organizationName === resource?.organization)
   const canEdit = canManage || resource?.uploadedBy === user?.email

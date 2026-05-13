@@ -11,8 +11,10 @@ async function requireNapaAdmin() {
   });
   if (!session?.user) throw new Error('Unauthorized');
 
-  // Check if user is NAPA admin (role-based, not org-based)
-  if (session.user.role !== 'napaAdmin') throw new Error('Unauthorized: NAPA Admin required');
+  // Check if user is NAPA Board or Director
+  if (session.user.role !== 'napaBoard' && session.user.role !== 'napaDirector') {
+    throw new Error('Unauthorized: NAPA staff required');
+  }
 
   return session.user;
 }
@@ -31,7 +33,7 @@ export async function getAllUsers() {
     name: user.name,
     organizationName: user.organizationName,
     isAdmin: user.isAdmin,
-    isNapaAdmin: user.role === 'napaAdmin',
+    isNapaAdmin: user.role === 'napaBoard' || user.role === 'napaDirector',
     approvalStatus: user.approvalStatus,
     banned: user.banned,
     banReason: user.banReason,

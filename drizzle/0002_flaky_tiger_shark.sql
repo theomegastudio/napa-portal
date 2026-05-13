@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "can_view_org_health" boolean DEFAULT false NOT NULL;

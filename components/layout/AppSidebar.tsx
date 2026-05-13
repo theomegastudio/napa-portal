@@ -9,6 +9,7 @@ import {
   Settings, LogOut, ChevronsUpDown, Bell,
 } from 'lucide-react'
 import NapaPortalLogo from '@/components/NapaPortalLogo'
+import CommandSearch from '@/components/CommandSearch'
 import UserAvatar from '@/components/UserAvatar'
 import ThemeToggle from '@/components/ThemeToggle'
 import {
@@ -19,7 +20,7 @@ import {
 } from '@/components/ui/sidebar'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
 
@@ -30,6 +31,18 @@ interface SidebarUser {
   image?: string | null
   isAdmin?: boolean
   isNapaAdmin?: boolean
+  isNapaBoard?: boolean
+  isNapaDirector?: boolean
+  canViewOrgHealth?: boolean
+  organizationName?: string | null
+}
+
+const NAPA_FULL_ORG_NAME = 'National APIDA Panhellenic Association'
+
+function abbreviateOrg(name?: string | null): string {
+  if (!name) return 'NAPA Portal'
+  if (name === NAPA_FULL_ORG_NAME) return 'NAPA'
+  return name
 }
 
 interface NavItem {
@@ -38,6 +51,8 @@ interface NavItem {
   icon: React.ElementType
   adminOnly?: boolean
   napaAdminOnly?: boolean
+  napaBoardOnly?: boolean
+  orgHealthGated?: boolean
   comingSoon?: boolean
 }
 
@@ -48,10 +63,10 @@ const mainNav: NavItem[] = [
 
 const adminNav: NavItem[] = [
   { title: 'Approvals', href: '/admin/approvals', icon: UserCheck, adminOnly: true },
-  { title: 'Members', href: '/admin/members', icon: Users, adminOnly: true },
+  { title: 'Org Users', href: '/admin/members', icon: Users, adminOnly: true },
   { title: 'Users', href: '/admin/users', icon: Shield, napaAdminOnly: true },
-  { title: 'Organizations', href: '/admin/organizations', icon: Building2, napaAdminOnly: true },
-  { title: 'Org Health', href: '/admin/org-health', icon: Activity, adminOnly: true },
+  { title: 'Organizations', href: '/admin/organizations', icon: Building2, napaBoardOnly: true },
+  { title: 'Org Health', href: '/admin/org-health', icon: Activity, orgHealthGated: true },
   { title: 'Audit Log', href: '/admin/audit', icon: ScrollText, adminOnly: true },
 ]
 
@@ -120,21 +135,19 @@ function NavUser({ user }: { user: SidebarUser }) {
             align="end"
             sideOffset={4}
           >
-            <DropdownMenuLabel className="p-0 font-normal">
-              <div className="flex items-center gap-2 px-2 py-1.5 text-sm">
-                <UserAvatar
-                  name={user.name}
-                  email={user.email ?? undefined}
-                  image={user.image}
-                  size="sm"
-                  className="h-8 w-8 rounded-lg"
-                />
-                <div className="grid flex-1 text-left leading-tight">
-                  <span className="truncate font-medium">{user.name || 'User'}</span>
-                  <span className="truncate text-xs text-muted-foreground">{user.email}</span>
-                </div>
+            <div className="flex items-center gap-2 px-2 py-1.5 text-sm">
+              <UserAvatar
+                name={user.name}
+                email={user.email ?? undefined}
+                image={user.image}
+                size="sm"
+                className="h-8 w-8 rounded-lg"
+              />
+              <div className="grid flex-1 text-left leading-tight">
+                <span className="truncate font-medium">{user.name || 'User'}</span>
+                <span className="truncate text-xs text-muted-foreground">{user.email}</span>
               </div>
-            </DropdownMenuLabel>
+            </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => router.push('/profile')}>
               <Settings className="h-4 w-4" />
@@ -156,6 +169,8 @@ export function AppSidebar({ user }: { user: SidebarUser }) {
   const pathname = usePathname()
 
   const visibleAdminNav = adminNav.filter(item => {
+    if (item.napaBoardOnly) return user.isNapaBoard
+    if (item.orgHealthGated) return user.isNapaBoard || (user.isNapaDirector && user.canViewOrgHealth)
     if (item.napaAdminOnly) return user.isNapaAdmin
     if (item.adminOnly) return user.isAdmin || user.isNapaAdmin
     return true
@@ -168,13 +183,13 @@ export function AppSidebar({ user }: { user: SidebarUser }) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" render={<Link href="/" />} tooltip="NAPA Resource Hub">
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg overflow-hidden shrink-0">
+            <SidebarMenuButton size="lg" render={<Link href="/" />} tooltip="NAPA Portal">
+              <div className="flex aspect-square size-8 items-center justify-center rounded-sm overflow-hidden shrink-0">
                 <NapaPortalLogo size="sm" />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">NAPA Hub</span>
-                <span className="truncate text-xs text-muted-foreground">Resource Portal</span>
+                <span className="truncate font-semibold">NAPA Portal</span>
+                <span className="truncate text-xs text-muted-foreground">{abbreviateOrg(user.organizationName)}</span>
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -182,6 +197,11 @@ export function AppSidebar({ user }: { user: SidebarUser }) {
       </SidebarHeader>
 
       <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupContent className="px-2 group-data-[collapsible=icon]:hidden">
+            <CommandSearch />
+          </SidebarGroupContent>
+        </SidebarGroup>
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>

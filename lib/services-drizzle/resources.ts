@@ -35,6 +35,10 @@ export async function getResources(params?: {
   // Status filter
   if (params?.status === 'archived') {
     conditions.push(eq(resources.status, 'archived' as any));
+    // Archived resources are scoped to the user's own org (NAPA staff see all)
+    if (!user.isNapaAdmin && user.organizationName) {
+      conditions.push(eq(resources.organization, user.organizationName));
+    }
   } else if (params?.status === 'active') {
     conditions.push(eq(resources.status, 'active' as any));
   }

@@ -15,8 +15,9 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check NAPA admin role
-    const isNapaAdmin = session.user.role === 'napaAdmin';
+    // Check NAPA role (Board or Director)
+    const isNapaBoard = session.user.role === 'napaBoard';
+    const isNapaDirector = session.user.role === 'napaDirector';
 
     return NextResponse.json({
       id: session.user.id,
@@ -24,7 +25,9 @@ export async function GET() {
       name: session.user.name,
       organizationName: session.user.organizationName,
       isAdmin: session.user.isAdmin,
-      isNapaAdmin,
+      isNapaAdmin: isNapaBoard || isNapaDirector,
+      isNapaBoard,
+      isNapaDirector,
     });
   } catch (error) {
     console.error('GET user error:', error);

@@ -47,7 +47,7 @@ const NAV_PAGES: NavPage[] = [
   { id: 'home', title: 'Resources', subtitle: 'Browse all resources', href: '/', icon: Home },
   { id: 'profile', title: 'Profile Settings', subtitle: 'Account and password', href: '/profile', icon: Settings },
   { id: 'approvals', title: 'Pending Approvals', subtitle: 'Review new users', href: '/admin/approvals', icon: UserCheck },
-  { id: 'members', title: 'Manage Members', subtitle: 'Organization members', href: '/admin/members', icon: Users },
+  { id: 'members', title: 'Org Users', subtitle: 'Manage your organization’s users', href: '/admin/members', icon: Users },
   { id: 'users', title: 'Manage Users', subtitle: 'All platform users', href: '/admin/users', icon: Shield },
   { id: 'org-health', title: 'Org Health', subtitle: 'Engagement metrics', href: '/admin/org-health', icon: Activity },
   { id: 'audit', title: 'Audit Log', subtitle: 'Activity history', href: '/admin/audit', icon: ScrollText },
@@ -132,12 +132,12 @@ export default function CommandSearch() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+        className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-muted-foreground hover:bg-black/5 transition-colors"
         aria-label="Search"
       >
-        <Search className="h-3.5 w-3.5 shrink-0" />
-        <span className="hidden md:inline">Search...</span>
-        <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium md:flex">
+        <Search className="h-4 w-4 shrink-0" />
+        <span className="flex-1 text-left">Search anything</span>
+        <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded border bg-background px-1.5 font-mono text-[10px] font-medium text-muted-foreground md:flex">
           <span className="text-xs">{isMac ? '⌘' : 'Ctrl'}</span>K
         </kbd>
       </button>

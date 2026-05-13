@@ -119,10 +119,10 @@ export default function ProfilePage() {
                   <Building2 className="h-4 w-4" />
                   {user.organizationName || 'No organization'}
                 </div>
-                {(user.isAdmin || user.role === 'napaAdmin') && (
+                {(user.isAdmin || user.role === 'napaBoard' || user.role === 'napaDirector') && (
                   <div className="flex items-center gap-1">
                     <Shield className="h-4 w-4 text-primary" />
-                    {user.role === 'napaAdmin' ? 'NAPA Admin' : 'Admin'}
+                    {user.role === 'napaBoard' ? 'NAPA Board' : user.role === 'napaDirector' ? 'NAPA Director' : 'Admin'}
                   </div>
                 )}
               </div>

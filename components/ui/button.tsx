@@ -44,12 +44,20 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  nativeButton,
+  render,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+  // When rendering as something other than a real <button>, disable nativeButton
+  // so Base UI doesn't warn about lost button semantics.
+  const inferredNativeButton =
+    nativeButton ?? (render === undefined ? true : false)
   return (
     <ButtonPrimitive
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
+      nativeButton={inferredNativeButton}
+      render={render}
       {...props}
     />
   )

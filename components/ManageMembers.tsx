@@ -92,7 +92,7 @@ export default function ManageMembers({ organizationName }: ManageMembersProps) 
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button variant="outline" />}>
         <Users className="mr-2 h-4 w-4" />
-        Manage Members
+        Org Users
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader className="space-y-3">

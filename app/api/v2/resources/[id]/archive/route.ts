@@ -33,7 +33,8 @@ export async function POST(
   }
 
   const canArchive =
-    user.role === 'napaAdmin' ||
+    user.role === 'napaBoard' ||
+    user.role === 'napaDirector' ||
     (user.organizationName === resource.organization && user.isAdmin)
 
   if (!canArchive) {

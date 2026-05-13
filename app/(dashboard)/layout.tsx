@@ -15,6 +15,8 @@ interface SessionUser {
   isAdmin?: boolean
   approvalStatus?: string
   lastOtpVerifiedAt?: Date | string | null
+  organizationName?: string | null
+  canViewOrgHealth?: boolean
 }
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -33,7 +35,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (isOTPVerificationRequired(lastVerified)) redirect('/verify-email')
 
   const isAdmin = user.isAdmin ?? false
-  const isNapaAdmin = user.role === 'napaAdmin'
+  const isNapaBoard = user.role === 'napaBoard'
+  const isNapaDirector = user.role === 'napaDirector'
+  const isNapaAdmin = isNapaBoard || isNapaDirector
+  const canViewOrgHealth = isNapaBoard || (isNapaDirector && !!user.canViewOrgHealth)
 
   return (
     <SidebarProvider>
@@ -44,6 +49,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
         image: user.image,
         isAdmin,
         isNapaAdmin,
+        isNapaBoard,
+        isNapaDirector,
+        canViewOrgHealth,
+        organizationName: user.organizationName,
       }} />
       <SidebarInset>
         <TopNav />

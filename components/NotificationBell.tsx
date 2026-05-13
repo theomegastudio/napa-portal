@@ -8,7 +8,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -151,7 +150,7 @@ export default function NotificationBell({ isAdmin }: NotificationBellProps) {
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80">
-        <DropdownMenuLabel className="flex justify-between items-center">
+        <div className="flex justify-between items-center px-2 py-1.5 text-xs font-medium text-muted-foreground">
           <span>Notifications</span>
           {unreadCount > 0 && (
             <Button
@@ -166,7 +165,7 @@ export default function NotificationBell({ isAdmin }: NotificationBellProps) {
               Mark all read
             </Button>
           )}
-        </DropdownMenuLabel>
+        </div>
         <DropdownMenuSeparator />
 
         {loading ? (

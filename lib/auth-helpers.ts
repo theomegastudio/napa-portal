@@ -13,7 +13,14 @@ export interface AuthUser {
   name: string | null;
   organizationName: string | null;
   isAdmin: boolean;
+  /** True if user is NAPA Board OR NAPA Director (read+write across orgs). */
   isNapaAdmin: boolean;
+  /** NAPA Board only — can approve users, grant/revoke roles, manage orgs. */
+  isNapaBoard: boolean;
+  /** NAPA Director only — read+write across orgs but no approvals/role grants. */
+  isNapaDirector: boolean;
+  /** Whether this director is allowed to see Org Health (Board always can). */
+  canViewOrgHealth: boolean;
   approvalStatus: ApprovalStatus;
   emailVerificationRequired: boolean;
   role: string;
@@ -54,13 +61,19 @@ export async function requireAuth(): Promise<AuthUser> {
     throw new Error('User not found');
   }
 
+  const isNapaBoard = userData.role === 'napaBoard';
+  const isNapaDirector = userData.role === 'napaDirector';
+
   return {
     id: userData.id,
     email: userData.email,
     name: userData.name,
     organizationName: userData.organizationName,
     isAdmin: userData.isAdmin,
-    isNapaAdmin: userData.role === 'napaAdmin',
+    isNapaAdmin: isNapaBoard || isNapaDirector,
+    isNapaBoard,
+    isNapaDirector,
+    canViewOrgHealth: isNapaBoard || (isNapaDirector && userData.canViewOrgHealth),
     approvalStatus: userData.approvalStatus,
     emailVerificationRequired: isOTPVerificationRequired(userData.lastOtpVerifiedAt),
     role: userData.role,
