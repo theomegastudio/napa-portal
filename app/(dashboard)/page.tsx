@@ -13,7 +13,31 @@ import { MagnifyingGlass, FileText, Archive } from "@phosphor-icons/react"
 import ResourceTable, { type ResourceRow } from "@/components/ResourceTable"
 import UploadResourceDialog from "@/components/UploadResourceDialog"
 import ResourceDetailDialog from "@/components/ResourceDetailDialog"
+import EditResourceDialogEnhanced from "@/components/EditResourceDialogEnhanced"
 import OrganizationSetup from "@/components/OrganizationSetup"
+import type { Resource } from "@/lib/types"
+
+function rowToResource(r: ResourceRow): Resource {
+  return {
+    id: r.id,
+    title: r.title,
+    description: r.description,
+    resource_type: r.resourceType as Resource['resource_type'],
+    external_link: r.externalLink,
+    organization: r.organization,
+    uploaded_by: r.uploadedBy,
+    created_at: r.createdAt,
+    updated_at: r.updatedAt,
+    deleted_at: null,
+    files: r.files.map(f => ({
+      id: f.id,
+      resource_id: f.resourceId,
+      file_url: f.fileUrl,
+      file_name: f.fileName,
+      created_at: f.createdAt,
+    })),
+  }
+}
 import { useDebouncedCallback } from "use-debounce"
 
 interface ExtendedUser {
@@ -40,6 +64,7 @@ export default function ResourcesPage() {
   const [showArchived, setShowArchived] = useState(false)
   const [needsOrgSetup, setNeedsOrgSetup] = useState(false)
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null)
+  const [editingResource, setEditingResource] = useState<ResourceRow | null>(null)
 
   const user = session?.user as ExtendedUser | undefined
   const isNapaAdmin = (user?.role === 'napaBoard' || user?.role === 'napaDirector')
@@ -169,6 +194,17 @@ export default function ResourcesPage() {
       onArchive={() => fetchResources(searchText, resourceType, false)}
       onDelete={() => fetchResources(searchText, resourceType, false)}
     />
+    {editingResource && (
+      <EditResourceDialogEnhanced
+        resource={rowToResource(editingResource)}
+        open={!!editingResource}
+        onOpenChange={(v) => { if (!v) setEditingResource(null) }}
+        onSuccess={() => {
+          setEditingResource(null)
+          fetchResources(searchText, resourceType, false)
+        }}
+      />
+    )}
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -229,7 +265,7 @@ export default function ResourcesPage() {
           canArchive={canArchive}
           onDelete={handleDelete}
           onArchive={handleArchive}
-          onEdit={() => {}}
+          onEdit={(resource) => setEditingResource(resource)}
           onRowClick={(r) => setSelectedResourceId(r.id)}
         />
       )}

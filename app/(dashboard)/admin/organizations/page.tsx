@@ -9,7 +9,8 @@ import { Badge } from '@/components/ui/badge'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { CardFrame } from '@/components/ui/card'
+import { CardFrame, CardFrameFooter } from '@/components/ui/card'
+import { TablePagination } from '@/components/ui/table-pagination'
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog'
@@ -52,6 +53,8 @@ const emptyForm: FormState = {
 export default function AdminOrganizationsPage() {
   const [orgs, setOrgs] = useState<OrgRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(0)
+  const PAGE_SIZE = 10
   const [createOpen, setCreateOpen] = useState(false)
   const [editing, setEditing] = useState<OrgRow | null>(null)
   const [deleting, setDeleting] = useState<OrgRow | null>(null)
@@ -276,7 +279,7 @@ export default function AdminOrganizationsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {orgs.map((org) => (
+              {orgs.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((org) => (
                 <TableRow key={org.id}>
                   <TableCell className="text-center text-muted-foreground tabular-nums">{org.displayOrder}</TableCell>
                   <TableCell className="font-medium">{org.organizationName}</TableCell>
@@ -309,6 +312,14 @@ export default function AdminOrganizationsPage() {
               ))}
             </TableBody>
           </Table>
+          <CardFrameFooter className="p-0">
+            <TablePagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={orgs.length}
+              onPageChange={setPage}
+            />
+          </CardFrameFooter>
         </CardFrame>
       )}
 

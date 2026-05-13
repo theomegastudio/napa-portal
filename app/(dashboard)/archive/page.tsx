@@ -9,6 +9,30 @@ import { toast } from 'sonner'
 import { MagnifyingGlass, Archive as ArchiveIcon } from '@phosphor-icons/react'
 import ResourceTable, { type ResourceRow } from '@/components/ResourceTable'
 import ResourceDetailDialog from '@/components/ResourceDetailDialog'
+import EditResourceDialogEnhanced from '@/components/EditResourceDialogEnhanced'
+import type { Resource } from '@/lib/types'
+
+function rowToResource(r: ResourceRow): Resource {
+  return {
+    id: r.id,
+    title: r.title,
+    description: r.description,
+    resource_type: r.resourceType as Resource['resource_type'],
+    external_link: r.externalLink,
+    organization: r.organization,
+    uploaded_by: r.uploadedBy,
+    created_at: r.createdAt,
+    updated_at: r.updatedAt,
+    deleted_at: null,
+    files: r.files.map(f => ({
+      id: f.id,
+      resource_id: f.resourceId,
+      file_url: f.fileUrl,
+      file_name: f.fileName,
+      created_at: f.createdAt,
+    })),
+  }
+}
 import { useDebouncedCallback } from 'use-debounce'
 
 interface ExtendedUser {
@@ -30,6 +54,7 @@ export default function ArchivePage() {
   const [loading, setLoading] = useState(true)
   const [searchText, setSearchText] = useState('')
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null)
+  const [editingResource, setEditingResource] = useState<ResourceRow | null>(null)
 
   const fetchArchived = async (search?: string) => {
     try {
@@ -112,6 +137,17 @@ export default function ArchivePage() {
         onArchive={() => fetchArchived(searchText)}
         onDelete={() => fetchArchived(searchText)}
       />
+      {editingResource && (
+        <EditResourceDialogEnhanced
+          resource={rowToResource(editingResource)}
+          open={!!editingResource}
+          onOpenChange={(v) => { if (!v) setEditingResource(null) }}
+          onSuccess={() => {
+            setEditingResource(null)
+            fetchArchived(searchText)
+          }}
+        />
+      )}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
@@ -145,7 +181,7 @@ export default function ArchivePage() {
             canArchive={canManageRow}
             onDelete={handleDelete}
             onArchive={handleUnarchive}
-            onEdit={() => {}}
+            onEdit={(resource) => setEditingResource(resource)}
             onRowClick={(r) => setSelectedResourceId(r.id)}
           />
         )}

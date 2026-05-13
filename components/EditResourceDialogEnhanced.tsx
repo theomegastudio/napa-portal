@@ -17,6 +17,13 @@ import type { Resource } from "@/lib/types"
 interface EditResourceDialogProps {
   resource: Resource
   onSuccess: () => void
+  /**
+   * When provided, the parent controls open state and the built-in
+   * trigger button is hidden. Useful for opening the dialog from a
+   * row dropdown elsewhere.
+   */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 interface FileConflict {
@@ -24,8 +31,19 @@ interface FileConflict {
   existingFile: { id: string; file_name: string | null; file_url: string }
 }
 
-export default function EditResourceDialogEnhanced({ resource, onSuccess }: EditResourceDialogProps) {
-  const [open, setOpen] = useState(false)
+export default function EditResourceDialogEnhanced({
+  resource,
+  onSuccess,
+  open: openProp,
+  onOpenChange,
+}: EditResourceDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false)
+  const isControlled = openProp !== undefined
+  const open = isControlled ? openProp : internalOpen
+  const setOpen = (v: boolean) => {
+    if (!isControlled) setInternalOpen(v)
+    onOpenChange?.(v)
+  }
   const [isUpdating, setIsUpdating] = useState(false)
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
@@ -209,9 +227,11 @@ export default function EditResourceDialogEnhanced({ resource, onSuccess }: Edit
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="ghost" size="icon" className="hover:bg-gray-200" />}>
-        <Edit className="h-4 w-4" />
-      </DialogTrigger>
+      {!isControlled && (
+        <DialogTrigger render={<Button variant="ghost" size="icon" className="hover:bg-gray-200" />}>
+          <Edit className="h-4 w-4" />
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Resource</DialogTitle>

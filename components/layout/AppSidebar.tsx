@@ -12,6 +12,7 @@ import NapaPortalLogo from '@/components/NapaPortalLogo'
 import CommandSearch from '@/components/CommandSearch'
 import UserAvatar from '@/components/UserAvatar'
 import ThemeToggle from '@/components/ThemeToggle'
+import NotificationBell from '@/components/NotificationBell'
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup,
   SidebarGroupContent, SidebarGroupLabel, SidebarHeader,
@@ -228,8 +229,9 @@ export function AppSidebar({ user }: { user: SidebarUser }) {
       </SidebarContent>
 
       <SidebarFooter>
-        <div className="flex items-center gap-1 px-2 py-1">
+        <div className="flex items-center gap-1 px-2 py-1 group-data-[collapsible=icon]:hidden">
           <ThemeToggle />
+          <NotificationBell isAdmin={user.isAdmin || user.isNapaAdmin} />
         </div>
         <NavUser user={user} />
       </SidebarFooter>

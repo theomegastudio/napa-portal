@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { CardFrame } from '@/components/ui/card'
+import { CardFrame, CardFrameFooter } from '@/components/ui/card'
+import { TablePagination } from '@/components/ui/table-pagination'
 import { toast } from 'sonner'
 import { Loader2, SquarePen, Trash2, Search, MoreHorizontal, Users, UserPlus, Ban, ShieldCheck, Shield } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -63,6 +64,8 @@ export default function AdminUsersPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedOrg, setSelectedOrg] = useState<string>('all')
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
+  const [page, setPage] = useState(0)
+  const PAGE_SIZE = 10
 
   const currentUser = session?.user as ExtendedUser | undefined
 
@@ -113,6 +116,7 @@ export default function AdminUsersPage() {
       else filtered = filtered.filter(u => u.approvalStatus === selectedStatus && !u.banned)
     }
     setFilteredUsers(filtered)
+    setPage(0)
   }, [searchQuery, selectedOrg, selectedStatus, users])
 
   const fetchData = async () => {
@@ -320,7 +324,7 @@ export default function AdminUsersPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredUsers.map((user) => (
+                  {filteredUsers.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((user) => (
                     <TableRow key={user.id} className={user.banned ? 'opacity-60' : ''}>
                       <TableCell>
                         <div>
@@ -375,6 +379,14 @@ export default function AdminUsersPage() {
                   ))}
                 </TableBody>
               </Table>
+            <CardFrameFooter className="p-0">
+              <TablePagination
+                page={page}
+                pageSize={PAGE_SIZE}
+                total={filteredUsers.length}
+                onPageChange={setPage}
+              />
+            </CardFrameFooter>
           </CardFrame>
         )}
       </div>

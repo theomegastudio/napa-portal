@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { CardFrame } from '@/components/ui/card'
+import { CardFrame, CardFrameFooter } from '@/components/ui/card'
+import { TablePagination } from '@/components/ui/table-pagination'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
@@ -37,6 +38,8 @@ export default function AdminApprovalsPage() {
   const [userToReject, setUserToReject] = useState<PendingUser | null>(null)
   const [rejectionReason, setRejectionReason] = useState('')
   const [rejecting, setRejecting] = useState(false)
+  const [page, setPage] = useState(0)
+  const PAGE_SIZE = 10
 
   useEffect(() => {
     fetchPendingUsers()
@@ -53,6 +56,7 @@ export default function AdminApprovalsPage() {
     } else {
       setFilteredUsers(pendingUsers)
     }
+    setPage(0)
   }, [searchQuery, pendingUsers])
 
   const fetchPendingUsers = async () => {
@@ -161,7 +165,7 @@ export default function AdminApprovalsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredUsers.map((user) => (
+                  {filteredUsers.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((user) => (
                     <TableRow key={user.id}>
                       <TableCell>
                         <div>
@@ -198,6 +202,14 @@ export default function AdminApprovalsPage() {
                   ))}
                 </TableBody>
               </Table>
+            <CardFrameFooter className="p-0">
+              <TablePagination
+                page={page}
+                pageSize={PAGE_SIZE}
+                total={filteredUsers.length}
+                onPageChange={setPage}
+              />
+            </CardFrameFooter>
           </CardFrame>
         )}
       </div>

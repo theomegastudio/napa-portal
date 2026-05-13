@@ -16,7 +16,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { CardFrame } from '@/components/ui/card'
+import { CardFrame, CardFrameFooter } from '@/components/ui/card'
+import { TablePagination } from '@/components/ui/table-pagination'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +36,8 @@ export default function OrgUsersClient({ organizationName, currentUserId }: OrgU
   const [members, setMembers] = useState<Member[]>([])
   const [filteredMembers, setFilteredMembers] = useState<Member[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [page, setPage] = useState(0)
+  const PAGE_SIZE = 10
   const [searchTerm, setSearchTerm] = useState('')
 
   // Invite dialog state
@@ -67,6 +70,7 @@ export default function OrgUsersClient({ organizationName, currentUserId }: OrgU
     } else {
       setFilteredMembers(members)
     }
+    setPage(0)
   }, [searchTerm, members])
 
   const fetchMembers = async () => {
@@ -246,7 +250,7 @@ export default function OrgUsersClient({ organizationName, currentUserId }: OrgU
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredMembers.map((member) => (
+                  {filteredMembers.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((member) => (
                     <TableRow key={member.id}>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -300,6 +304,14 @@ export default function OrgUsersClient({ organizationName, currentUserId }: OrgU
                   ))}
                 </TableBody>
               </Table>
+          <CardFrameFooter className="p-0">
+            <TablePagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={filteredMembers.length}
+              onPageChange={setPage}
+            />
+          </CardFrameFooter>
         </CardFrame>
       )}
 
