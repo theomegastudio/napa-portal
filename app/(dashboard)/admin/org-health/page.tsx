@@ -202,9 +202,7 @@ export default function OrgHealthPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>
-                      <Link href="/admin/organizations" className="hover:text-foreground">Organization</Link>
-                    </TableHead>
+                    <TableHead>Organization</TableHead>
                     <TableHead className="text-center">Monthly Meetings</TableHead>
                     <TableHead className="text-center">NAPAAM</TableHead>
                     <TableHead className="text-center">Renewal &amp; Cert</TableHead>
@@ -217,7 +215,7 @@ export default function OrgHealthPage() {
                   {orgs.map(org => (
                     <TableRow key={org.organizationName}>
                       <TableCell className="font-medium">
-                        <Link href={`/admin/organizations/${orgSlug(org.organizationName)}`} className="hover:underline hover:text-primary">
+                        <Link href={`/org/${orgSlug(org.organizationName)}`} className="hover:underline hover:text-primary">
                           {org.organizationName}
                         </Link>
                       </TableCell>

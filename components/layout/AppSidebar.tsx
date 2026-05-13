@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import NapaPortalLogo from '@/components/NapaPortalLogo'
 import CommandSearch from '@/components/CommandSearch'
+import { orgSlug } from '@/lib/slug'
 import UserAvatar from '@/components/UserAvatar'
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup,
@@ -238,6 +239,16 @@ export function AppSidebar({ user }: { user: SidebarUser }) {
               {mainNav.map(item => (
                 <NavLink key={item.href} item={item} pathname={pathname} badge={badgeFor(item.href)} />
               ))}
+              {user.organizationName && user.organizationName !== NAPA_FULL_ORG_NAME && (
+                <NavLink
+                  item={{
+                    title: 'Our Organization',
+                    href: `/org/${orgSlug(user.organizationName)}`,
+                    icon: Building2,
+                  }}
+                  pathname={pathname}
+                />
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

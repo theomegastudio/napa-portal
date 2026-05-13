@@ -23,14 +23,27 @@ export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const user = session.user as unknown as SessionUser
-  if (user.role !== 'napaBoard') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await request.json()
-  const { organizationName, name, role, email, phone, notes } = body ?? {}
+  const { organizationName, name, role, email, phone, notes, year } = body ?? {}
   if (!organizationName || !name) return NextResponse.json({ error: 'organizationName and name required' }, { status: 400 })
 
+  // NAPA Board can edit any org's leaders. Otherwise, only an org admin of the
+  // target org can edit that org's leaders.
+  const isNapaBoard = user.role === 'napaBoard'
+  const isOwnOrgAdmin = !!user.isAdmin && user.organizationName === organizationName
+  if (!isNapaBoard && !isOwnOrgAdmin) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const [row] = await db.insert(orgLeaders).values({
-    organizationName, name, role: role || null, email: email || null, phone: phone || null, notes: notes || null,
+    organizationName,
+    name,
+    role: role || null,
+    email: email || null,
+    phone: phone || null,
+    notes: notes || null,
+    year: typeof year === 'number' ? year : null,
   }).returning()
   return NextResponse.json(row)
 }

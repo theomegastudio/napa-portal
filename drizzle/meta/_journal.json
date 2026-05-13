@@ -57,6 +57,13 @@
       "when": 1778710251985,
       "tag": "0007_fancy_bulldozer",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1778714465889,
+      "tag": "0008_outstanding_lester",
+      "breakpoints": true
     }
   ]
 }

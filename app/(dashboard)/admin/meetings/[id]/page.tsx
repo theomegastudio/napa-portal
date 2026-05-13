@@ -233,7 +233,7 @@ export default function MeetingDetailPage() {
               return (
                 <TableRow key={org.organizationName}>
                   <TableCell>
-                    <Link href={`/admin/organizations/${orgSlug(org.organizationName)}`} className="hover:underline hover:text-primary">
+                    <Link href={`/org/${orgSlug(org.organizationName)}`} className="hover:underline hover:text-primary">
                       {org.organizationName}
                     </Link>
                   </TableCell>

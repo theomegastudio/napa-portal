@@ -279,6 +279,8 @@ export const orgLeaders = pgTable('org_leaders', {
   email: text('email'),
   phone: text('phone'),
   notes: text('notes'),
+  /** Term year (e.g. 2026). Null means "ongoing / not year-specific". */
+  year: integer('year'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

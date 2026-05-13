@@ -1,0 +1,1 @@
+ALTER TABLE "org_leaders" ADD COLUMN "year" integer;

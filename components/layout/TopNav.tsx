@@ -15,6 +15,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   '': 'Home',
   archive: 'Archive',
   profile: 'Profile Settings',
+  org: 'Organization',
   admin: 'Admin',
   approvals: 'Pending Approvals',
   'org-users': 'Org Users',
