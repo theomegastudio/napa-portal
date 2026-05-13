@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, organizationName, isAdmin } = body;
+    const { email, organizationName, isAdmin, role } = body;
 
     if (!email || !organizationName) {
       return NextResponse.json(
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await inviteUser(email, organizationName, isAdmin || false);
+    const result = await inviteUser(email, organizationName, isAdmin || false, role);
     return NextResponse.json(result);
   } catch (error) {
     console.error('POST invite member error:', error);

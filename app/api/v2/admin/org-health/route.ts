@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { organizations, duesRecords, meetingAttendance, meetings, orgYearlyCompliance } from '@/lib/db/schema'
-import { and, asc, eq, gte, lt, ne } from 'drizzle-orm'
+import { organizations, duesRecords, duesPayments, meetingAttendance, meetings, orgYearlyCompliance } from '@/lib/db/schema'
+import { and, eq, gte, lt, ne, sql } from 'drizzle-orm'
 
 const NAPA_ORG_NAME = 'National APIDA Panhellenic Association'
 const MIN_ATTENDEES_PER_MEETING = 2
@@ -32,18 +32,20 @@ export async function GET(request: NextRequest) {
   const yearStart = new Date(Date.UTC(year, 0, 1))
   const yearEnd = new Date(Date.UTC(year + 1, 0, 1))
 
-  // Active orgs excluding NAPA parent. Ordered by manual displayOrder then alpha tiebreak.
+  // Active orgs excluding NAPA parent. Ordered alphabetically (case-insensitive)
+  // so e.g. "alpha Kappa Delta Phi" sorts before "Alpha Phi Gamma".
   const orgs = await db.query.organizations.findMany({
     where: and(
       eq(organizations.isActive, true),
       ne(organizations.organizationName, NAPA_ORG_NAME),
     ),
-    orderBy: [asc(organizations.displayOrder), asc(organizations.organizationName)],
+    orderBy: sql`LOWER(${organizations.organizationName})`,
   })
 
-  // Dues for this year, keyed by org name.
+  // Dues for this year, keyed by org name, with payment history.
   const dues = await db.query.duesRecords.findMany({
     where: eq(duesRecords.year, year),
+    with: { payments: true },
   })
   const duesMap = new Map(dues.map((d) => [d.organizationName, d]))
 
@@ -54,20 +56,24 @@ export async function GET(request: NextRequest) {
   const monthlyMeetings = yearMeetings.filter((m) => m.meetingType === 'monthly')
   const annualMeetings = yearMeetings.filter((m) => m.meetingType === 'annual')
 
-  // Attendance for this year's meetings (attended=true only).
+  // Attendance for this year's meetings. For monthly we only need a boolean
+  // ("attended this meeting"); for NAPAAM (annual) we track an attendeeCount per org.
   const meetingIds = yearMeetings.map((m) => m.id)
-  const attendance = meetingIds.length
-    ? await db.query.meetingAttendance.findMany({
-        where: eq(meetingAttendance.attended, true),
-      })
+  const allAttendance = meetingIds.length
+    ? await db.query.meetingAttendance.findMany()
     : []
-  const attendanceByMeeting = new Map<string, Set<string>>()
-  for (const a of attendance) {
+  const attendanceByMeeting = new Map<string, Set<string>>() // attended=true rows
+  const annualCountsByMeeting = new Map<string, Map<string, number>>() // meetingId -> org -> count
+  for (const a of allAttendance) {
     if (!meetingIds.includes(a.meetingId)) continue
-    if (!attendanceByMeeting.has(a.meetingId)) {
-      attendanceByMeeting.set(a.meetingId, new Set())
+    if (a.attended) {
+      if (!attendanceByMeeting.has(a.meetingId)) attendanceByMeeting.set(a.meetingId, new Set())
+      attendanceByMeeting.get(a.meetingId)!.add(a.organizationName)
     }
-    attendanceByMeeting.get(a.meetingId)!.add(a.organizationName)
+    if (a.attendeeCount > 0) {
+      if (!annualCountsByMeeting.has(a.meetingId)) annualCountsByMeeting.set(a.meetingId, new Map())
+      annualCountsByMeeting.get(a.meetingId)!.set(a.organizationName, a.attendeeCount)
+    }
   }
 
   // Per-org annual compliance for this year (renewal + 1x1).
@@ -89,14 +95,20 @@ export async function GET(request: NextRequest) {
   const result = orgs.map((org) => {
     const memberCount = org.memberCount ?? 0
     const duesRecord = duesMap.get(org.organizationName)
-    const duesPaid = !!duesRecord?.paidAt
+    const duesTargetCents = duesRecord?.amountCents ?? 0
+    const paidCents = (duesRecord?.payments ?? []).reduce((s, p) => s + p.amountCents, 0)
+    const duesPaid = duesTargetCents > 0 && paidCents >= duesTargetCents
+    const duesPartial = paidCents > 0 && !duesPaid
 
     const monthlyAttended = monthlyMeetings.filter((m) =>
       attendanceByMeeting.get(m.id)?.has(org.organizationName)
     ).length
-    const annualAttended = annualMeetings.filter((m) =>
-      attendanceByMeeting.get(m.id)?.has(org.organizationName)
-    ).length
+
+    // NAPAAM attendees: sum count across all annual meetings this year for this org.
+    let napaamAttendees = 0
+    for (const m of annualMeetings) {
+      napaamAttendees += annualCountsByMeeting.get(m.id)?.get(org.organizationName) ?? 0
+    }
 
     const c = complianceMap.get(org.organizationName)
     const renewalCompleted = !!c?.renewalCompletedAt
@@ -106,13 +118,12 @@ export async function GET(request: NextRequest) {
     const monthlyScore = monthlyMeetings.length > 0
       ? Math.round((monthlyAttended / monthlyMeetings.length) * 20)
       : 20 // no meetings yet = no penalty
-    const annualScore = annualMeetings.length > 0
-      ? Math.round((annualAttended / annualMeetings.length) * 20)
-      : 20
+    // NAPAAM: 2+ attendees = full 20, 1 attendee = 10, 0 attendees = 0.
+    const napaamScore = napaamAttendees >= 2 ? 20 : napaamAttendees === 1 ? 10 : 0
     const renewalScore = renewalCompleted ? 20 : 0
-    const duesScore = duesPaid ? 20 : 0
+    const duesScore = duesPaid ? 20 : duesPartial ? 10 : 0
     const oneOnOneScore = oneOnOneCompleted ? 20 : 0
-    const engagementScore = monthlyScore + annualScore + renewalScore + duesScore + oneOnOneScore
+    const engagementScore = monthlyScore + napaamScore + renewalScore + duesScore + oneOnOneScore
 
     return {
       organizationName: org.organizationName,
@@ -121,15 +132,21 @@ export async function GET(request: NextRequest) {
       displayOrder: org.displayOrder,
       monthlyMeetings: monthlyMeetings.length,
       monthlyAttended,
-      annualMeetings: annualMeetings.length,
-      annualAttended,
+      napaamAttendees,
       renewalCompleted,
       renewalCompletedAt: c?.renewalCompletedAt ?? null,
       oneOnOneCompleted,
       oneOnOneCompletedAt: c?.oneOnOneCompletedAt ?? null,
       duesPaid,
-      duesAmount: duesRecord?.amountCents ? duesRecord.amountCents / 100 : null,
-      duesPaidAt: duesRecord?.paidAt ?? null,
+      duesPartial,
+      duesRecordId: duesRecord?.id ?? null,
+      duesTargetAmount: duesTargetCents > 0 ? duesTargetCents / 100 : null,
+      duesPaidAmount: paidCents / 100,
+      duesPayments: (duesRecord?.payments ?? []).map(p => ({
+        id: p.id,
+        amount: p.amountCents / 100,
+        paidAt: p.paidAt,
+      })),
       engagementScore,
     }
   })

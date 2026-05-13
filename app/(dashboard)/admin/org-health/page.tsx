@@ -1,33 +1,43 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle, CardFrame } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { AlertTriangle, Building2, Check, TrendingUp } from 'lucide-react'
+import { AlertTriangle, Building2, Check, DollarSign, Plus, Trash, TrendingUp } from 'lucide-react'
+
+interface DuesPayment {
+  id: string
+  amount: number
+  paidAt: string
+}
 
 interface OrgHealth {
   organizationName: string
-  slug: string | null
-  memberCount: number
-  displayOrder: number
   monthlyMeetings: number
   monthlyAttended: number
-  annualMeetings: number
-  annualAttended: number
+  napaamAttendees: number
   renewalCompleted: boolean
   renewalCompletedAt: string | null
   oneOnOneCompleted: boolean
   oneOnOneCompletedAt: string | null
   duesPaid: boolean
-  duesAmount: number | null
-  duesPaidAt: string | null
+  duesPartial: boolean
+  duesRecordId: string | null
+  duesTargetAmount: number | null
+  duesPaidAmount: number
+  duesPayments: DuesPayment[]
   engagementScore: number
 }
 
@@ -52,11 +62,19 @@ function ScoreBadge({ score }: { score: number }) {
     score >= 80 ? 'bg-green-100 text-green-800 border-green-200' :
     score >= 50 ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
     'bg-red-100 text-red-800 border-red-200'
-  return (
-    <Badge variant="outline" className={`font-mono ${color}`}>
-      {score}
-    </Badge>
-  )
+  return <Badge variant="outline" className={`font-mono ${color}`}>{score}</Badge>
+}
+
+/** Recompute the engagement score from the current row state for optimistic updates. */
+function computeScore(row: OrgHealth, monthlyMeetingCount: number): number {
+  const monthlyScore = monthlyMeetingCount > 0
+    ? Math.round((row.monthlyAttended / monthlyMeetingCount) * 20)
+    : 20
+  const napaamScore = row.napaamAttendees >= 2 ? 20 : row.napaamAttendees === 1 ? 10 : 0
+  const renewalScore = row.renewalCompleted ? 20 : 0
+  const duesScore = row.duesPaid ? 20 : row.duesPartial ? 10 : 0
+  const oneOnOneScore = row.oneOnOneCompleted ? 20 : 0
+  return monthlyScore + napaamScore + renewalScore + duesScore + oneOnOneScore
 }
 
 export default function OrgHealthPage() {
@@ -64,6 +82,7 @@ export default function OrgHealthPage() {
   const [year, setYear] = useState(String(currentYear))
   const [data, setData] = useState<HealthData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [duesOrg, setDuesOrg] = useState<OrgHealth | null>(null)
 
   const fetchData = useCallback(() => {
     setLoading(true)
@@ -79,15 +98,26 @@ export default function OrgHealthPage() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
+  const updateRow = (orgName: string, patch: Partial<OrgHealth>) => {
+    setData(prev => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        organizations: prev.organizations.map(o => {
+          if (o.organizationName !== orgName) return o
+          const next = { ...o, ...patch }
+          next.engagementScore = computeScore(next, prev.monthlyMeetingCount)
+          return next
+        }),
+      }
+    })
+  }
+
   const setFlag = async (org: OrgHealth, field: 'renewal' | 'oneOnOne', value: boolean) => {
-    // optimistic update
-    setData(prev => prev ? {
-      ...prev,
-      organizations: prev.organizations.map(o => o.organizationName === org.organizationName
-        ? { ...o, [`${field}Completed`]: value, [`${field}CompletedAt`]: value ? new Date().toISOString() : null }
-        : o
-      ),
-    } : prev)
+    updateRow(org.organizationName, {
+      [`${field}Completed`]: value,
+      [`${field}CompletedAt`]: value ? new Date().toISOString() : null,
+    } as Partial<OrgHealth>)
     try {
       const res = await fetch('/api/v2/admin/org-compliance', {
         method: 'PATCH',
@@ -104,10 +134,31 @@ export default function OrgHealthPage() {
     }
   }
 
-  const orgs = data?.organizations ?? []
-  const avgScore = orgs.length ? Math.round(orgs.reduce((s, o) => s + o.engagementScore, 0) / orgs.length) : 0
-  const compliantCount = orgs.filter(o => o.renewalCompleted && o.duesPaid && o.oneOnOneCompleted).length
+  const setNapaam = async (org: OrgHealth, count: number) => {
+    if (count < 0 || !Number.isFinite(count)) return
+    updateRow(org.organizationName, { napaamAttendees: count })
+    try {
+      const res = await fetch('/api/v2/admin/org-health/napaam', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ organizationName: org.organizationName, year: parseInt(year), count }),
+      })
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: 'Failed' }))
+        throw new Error(error)
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to update NAPAAM attendees')
+      fetchData()
+    }
+  }
 
+  const avgScore = useMemo(() => {
+    if (!data?.organizations.length) return 0
+    return Math.round(data.organizations.reduce((s, o) => s + o.engagementScore, 0) / data.organizations.length)
+  }, [data])
+  const compliantCount = data?.organizations.filter(o => o.renewalCompleted && o.duesPaid && o.oneOnOneCompleted).length ?? 0
+  const orgs = data?.organizations ?? []
   const years = Array.from({ length: 5 }, (_, i) => String(currentYear - i))
 
   return (
@@ -120,9 +171,7 @@ export default function OrgHealthPage() {
         <div className="flex items-center gap-2">
           <Button variant="outline" render={<Link href="/admin/meetings" />}>Manage Meetings</Button>
           <Select value={year} onValueChange={setYear}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger className="w-32"><span>{year}</span></SelectTrigger>
             <SelectContent>
               {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
             </SelectContent>
@@ -150,7 +199,6 @@ export default function OrgHealthPage() {
                 <p className="text-xs text-muted-foreground mt-1">Across {orgs.length} organizations</p>
               </CardContent>
             </Card>
-
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Fully Compliant</CardTitle>
@@ -161,7 +209,6 @@ export default function OrgHealthPage() {
                 <p className="text-xs text-muted-foreground mt-1">Renewal · Dues · 1×1 with NAPA</p>
               </CardContent>
             </Card>
-
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Meetings This Year</CardTitle>
@@ -198,10 +245,11 @@ export default function OrgHealthPage() {
               <Table variant="card">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Organization</TableHead>
-                    <TableHead className="text-center">Members</TableHead>
-                    <TableHead className="text-center">Monthly</TableHead>
-                    <TableHead className="text-center">Annual</TableHead>
+                    <TableHead>
+                      <Link href="/admin/organizations" className="hover:text-foreground">Organization</Link>
+                    </TableHead>
+                    <TableHead className="text-center">Monthly Meetings</TableHead>
+                    <TableHead className="text-center">NAPAAM</TableHead>
                     <TableHead className="text-center">Renewal &amp; Cert</TableHead>
                     <TableHead className="text-center">Dues</TableHead>
                     <TableHead className="text-center">1×1 w/ NAPA</TableHead>
@@ -211,13 +259,22 @@ export default function OrgHealthPage() {
                 <TableBody>
                   {orgs.map(org => (
                     <TableRow key={org.organizationName}>
-                      <TableCell className="font-medium">{org.organizationName}</TableCell>
-                      <TableCell className="text-center tabular-nums">{org.memberCount}</TableCell>
+                      <TableCell className="font-medium">
+                        <Link href={`/admin/organizations/${encodeURIComponent(org.organizationName)}`} className="hover:underline hover:text-primary">
+                          {org.organizationName}
+                        </Link>
+                      </TableCell>
                       <TableCell className="text-center text-sm tabular-nums">
                         {org.monthlyMeetings > 0 ? `${org.monthlyAttended}/${org.monthlyMeetings}` : '—'}
                       </TableCell>
-                      <TableCell className="text-center text-sm tabular-nums">
-                        {org.annualMeetings > 0 ? `${org.annualAttended}/${org.annualMeetings}` : '—'}
+                      <TableCell className="text-center">
+                        <Input
+                          type="number"
+                          min={0}
+                          value={org.napaamAttendees}
+                          onChange={(e) => setNapaam(org, Math.max(0, parseInt(e.target.value || '0', 10)))}
+                          className="h-8 w-16 text-center tabular-nums mx-auto"
+                        />
                       </TableCell>
                       <TableCell className="text-center">
                         <Checkbox
@@ -227,10 +284,18 @@ export default function OrgHealthPage() {
                         />
                       </TableCell>
                       <TableCell className="text-center">
-                        {org.duesPaid
-                          ? <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">Paid</Badge>
-                          : <Badge variant="outline" className="text-muted-foreground">Unpaid</Badge>
-                        }
+                        <button
+                          onClick={() => setDuesOrg(org)}
+                          className="inline-flex items-center gap-1 hover:underline"
+                        >
+                          {org.duesPaid
+                            ? <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">Paid</Badge>
+                            : org.duesPartial
+                            ? <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-200">Partial</Badge>
+                            : <Badge variant="outline" className="text-muted-foreground">Unpaid</Badge>
+                          }
+                          <DollarSign className="h-3 w-3 text-muted-foreground" />
+                        </button>
                       </TableCell>
                       <TableCell className="text-center">
                         <Checkbox
@@ -250,6 +315,176 @@ export default function OrgHealthPage() {
           )}
         </>
       )}
+
+      <DuesDialog
+        org={duesOrg}
+        year={parseInt(year)}
+        onClose={() => setDuesOrg(null)}
+        onChange={() => { setDuesOrg(null); fetchData() }}
+      />
     </div>
+  )
+}
+
+function DuesDialog({
+  org,
+  year,
+  onClose,
+  onChange,
+}: {
+  org: OrgHealth | null
+  year: number
+  onClose: () => void
+  onChange: () => void
+}) {
+  const [target, setTarget] = useState('')
+  const [amount, setAmount] = useState('')
+  const [paidAt, setPaidAt] = useState(new Date().toISOString().slice(0, 10))
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (org) {
+      setTarget(String(org.duesTargetAmount ?? ''))
+      setAmount('')
+      setPaidAt(new Date().toISOString().slice(0, 10))
+    }
+  }, [org])
+
+  if (!org) return null
+
+  const saveTarget = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/v2/admin/dues', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          organizationName: org.organizationName,
+          year,
+          amount: parseFloat(target) || 0,
+        }),
+      })
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: 'Failed' }))
+        throw new Error(error)
+      }
+      toast.success('Target amount saved')
+      onChange()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to save target')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const addPayment = async () => {
+    if (!org.duesRecordId) {
+      toast.error('Set a target amount first to create the dues record.')
+      return
+    }
+    const amt = parseFloat(amount)
+    if (!amt || amt <= 0) {
+      toast.error('Amount must be greater than 0')
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/v2/admin/dues/${org.duesRecordId}/payments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: amt, paidAt }),
+      })
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: 'Failed' }))
+        throw new Error(error)
+      }
+      toast.success('Payment added')
+      onChange()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to add payment')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const deletePayment = async (paymentId: string) => {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/v2/admin/dues/payments/${paymentId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Failed')
+      toast.success('Payment removed')
+      onChange()
+    } catch {
+      toast.error('Failed to remove payment')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={!!org} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Dues — {org.organizationName} ({year})</DialogTitle>
+          <DialogDescription>Track the target amount and individual payments.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+            <div className="space-y-1.5">
+              <Label htmlFor="dues-target">Annual target ($)</Label>
+              <Input
+                id="dues-target"
+                type="number"
+                min={0}
+                step="0.01"
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+              />
+            </div>
+            <Button onClick={saveTarget} disabled={saving}>Save target</Button>
+          </div>
+
+          <div className="rounded-lg border">
+            <div className="px-3 py-2 border-b flex items-center justify-between text-sm">
+              <span className="font-medium">Payments</span>
+              <span className="text-muted-foreground tabular-nums">
+                ${org.duesPaidAmount.toFixed(2)} {org.duesTargetAmount != null && (
+                  <>/ ${org.duesTargetAmount.toFixed(2)}</>
+                )}
+              </span>
+            </div>
+            <div className="divide-y">
+              {org.duesPayments.length === 0 ? (
+                <div className="px-3 py-4 text-sm text-muted-foreground text-center">No payments yet.</div>
+              ) : org.duesPayments.map(p => (
+                <div key={p.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                  <span className="tabular-nums">${p.amount.toFixed(2)}</span>
+                  <span className="text-muted-foreground">{new Date(p.paidAt).toLocaleDateString()}</span>
+                  <Button variant="ghost" size="sm" onClick={() => deletePayment(p.id)} disabled={saving}>
+                    <Trash className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <div className="px-3 py-2 border-t flex items-end gap-2">
+              <div className="space-y-1 flex-1">
+                <Label htmlFor="dues-amount" className="text-xs">Amount</Label>
+                <Input id="dues-amount" type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              </div>
+              <div className="space-y-1 flex-1">
+                <Label htmlFor="dues-date" className="text-xs">Date paid</Label>
+                <Input id="dues-date" type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
+              </div>
+              <Button onClick={addPayment} disabled={saving || !org.duesRecordId}>
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

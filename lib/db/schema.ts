@@ -71,9 +71,11 @@ export const organizations = pgTable('organizations', {
   slug: text('slug').unique(),
   logoUrl: text('logo_url'),
   isActive: boolean('is_active').default(true).notNull(),
+  /** Timestamp when the org was marked inactive (archived). Null when active. */
+  inactivatedAt: timestamp('inactivated_at', { withTimezone: true }),
   // Manually-tracked headcount for Org Health. Independent of users in the platform.
   memberCount: integer('member_count').default(0).notNull(),
-  // Display order for Org Health and other places that need a stable manual sort.
+  // Display order kept for legacy / future reordering. UI sorts alphabetically.
   displayOrder: integer('display_order').default(0).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -223,10 +225,44 @@ export const duesRecords = pgTable('dues_records', {
     .notNull()
     .references(() => organizations.organizationName, { onDelete: 'cascade' }),
   year: integer('year').notNull(),
-  amountCents: integer('amount_cents').notNull(), // stored in cents to avoid float precision
-  paidAt: timestamp('paid_at', { withTimezone: true }),
+  amountCents: integer('amount_cents').notNull(), // target amount for the year (cents)
+  paidAt: timestamp('paid_at', { withTimezone: true }), // legacy single-payment field
   notes: text('notes'),
   createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Individual payments toward a year's dues. An org on a payment plan has
+ * multiple rows summing to (or exceeding) the duesRecords.amountCents target.
+ */
+export const duesPayments = pgTable('dues_payments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  duesRecordId: uuid('dues_record_id')
+    .notNull()
+    .references(() => duesRecords.id, { onDelete: 'cascade' }),
+  amountCents: integer('amount_cents').notNull(),
+  paidAt: timestamp('paid_at', { withTimezone: true }).notNull(),
+  notes: text('notes'),
+  recordedBy: text('recorded_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Contact info for an org's leaders (president, treasurer, etc.). NAPA Board
+ * edits; surfaced on the org detail page.
+ */
+export const orgLeaders = pgTable('org_leaders', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationName: text('organization_name')
+    .notNull()
+    .references(() => organizations.organizationName, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  role: text('role'),
+  email: text('email'),
+  phone: text('phone'),
+  notes: text('notes'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -260,6 +296,11 @@ export const meetingAttendance = pgTable('meeting_attendance', {
     .notNull()
     .references(() => organizations.organizationName, { onDelete: 'cascade' }),
   attended: boolean('attended').default(false).notNull(),
+  /**
+   * Number of attendees from the org. Used by NAPAAM (annual) meetings where
+   * "2+ attendees" is the bar; monthly meetings typically just use attended=true.
+   */
+  attendeeCount: integer('attendee_count').default(0).notNull(),
   notes: text('notes'),
   recordedBy: text('recorded_by').references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -436,9 +477,24 @@ export const approvalNotificationsRelations = relations(approvalNotifications, (
   }),
 }));
 
-export const duesRecordsRelations = relations(duesRecords, ({ one }) => ({
+export const duesRecordsRelations = relations(duesRecords, ({ one, many }) => ({
   organization: one(organizations, {
     fields: [duesRecords.organizationName],
+    references: [organizations.organizationName],
+  }),
+  payments: many(duesPayments),
+}));
+
+export const duesPaymentsRelations = relations(duesPayments, ({ one }) => ({
+  duesRecord: one(duesRecords, {
+    fields: [duesPayments.duesRecordId],
+    references: [duesRecords.id],
+  }),
+}));
+
+export const orgLeadersRelations = relations(orgLeaders, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [orgLeaders.organizationName],
     references: [organizations.organizationName],
   }),
 }));

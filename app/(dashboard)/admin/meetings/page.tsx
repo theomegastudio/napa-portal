@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CardFrame } from '@/components/ui/card'
 import {
@@ -16,21 +16,12 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger,
 } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { AlertTriangle, CalendarPlus, MoreHorizontal, SquarePen, Trash, Users } from 'lucide-react'
+import { AlertTriangle, CalendarPlus, FileUp } from 'lucide-react'
 
 type MeetingType = 'monthly' | 'annual' | 'general' | 'board' | 'committee' | 'special'
-
-interface MeetingAttendance {
-  id: string
-  organizationName: string
-  attended: boolean
-}
 
 interface Meeting {
   id: string
@@ -38,13 +29,7 @@ interface Meeting {
   meetingType: MeetingType
   meetingDate: string
   notes: string | null
-  attendance: MeetingAttendance[]
-}
-
-interface Org {
-  id: string
-  organizationName: string
-  displayOrder: number
+  attendance: { id: string; organizationName: string; attended: boolean }[]
 }
 
 const NAPA_ORG_NAME = 'National APIDA Panhellenic Association'
@@ -52,7 +37,7 @@ const MIN_ATTENDEES = 2
 
 const TYPE_LABEL: Record<MeetingType, string> = {
   monthly: 'Monthly',
-  annual: 'Annual',
+  annual: 'NAPAAM',
   general: 'General',
   board: 'Board',
   committee: 'Committee',
@@ -61,11 +46,9 @@ const TYPE_LABEL: Record<MeetingType, string> = {
 
 export default function MeetingsPage() {
   const [meetings, setMeetings] = useState<Meeting[]>([])
-  const [orgs, setOrgs] = useState<Org[]>([])
   const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
-  const [editing, setEditing] = useState<Meeting | null>(null)
-  const [deleting, setDeleting] = useState<Meeting | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const [form, setForm] = useState({
@@ -74,19 +57,15 @@ export default function MeetingsPage() {
     meetingDate: '',
     notes: '',
   })
+  const [csvText, setCsvText] = useState('')
 
   const fetchMeetings = async () => {
     try {
-      const [mRes, oRes] = await Promise.all([
-        fetch('/api/v2/admin/meetings'),
-        fetch('/api/v2/admin/organizations'),
-      ])
-      if (!mRes.ok || !oRes.ok) throw new Error('Failed')
-      setMeetings(await mRes.json())
-      const orgList: Org[] = await oRes.json()
-      setOrgs(orgList.filter(o => o.organizationName !== NAPA_ORG_NAME))
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to load meetings')
+      const res = await fetch('/api/v2/admin/meetings')
+      if (!res.ok) throw new Error('Failed')
+      setMeetings(await res.json())
+    } catch {
+      toast.error('Failed to load meetings')
     } finally {
       setLoading(false)
     }
@@ -97,16 +76,6 @@ export default function MeetingsPage() {
   const openCreate = () => {
     setForm({ title: '', meetingType: 'monthly', meetingDate: '', notes: '' })
     setCreateOpen(true)
-  }
-
-  const openEdit = (m: Meeting) => {
-    setForm({
-      title: m.title,
-      meetingType: m.meetingType,
-      meetingDate: m.meetingDate.slice(0, 10),
-      notes: m.notes ?? '',
-    })
-    setEditing(m)
   }
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -137,75 +106,49 @@ export default function MeetingsPage() {
     }
   }
 
-  const handleUpdate = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editing) return
-    setSaving(true)
-    try {
-      const res = await fetch(`/api/v2/admin/meetings/${editing.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: form.title,
-          meetingType: form.meetingType,
-          meetingDate: form.meetingDate,
-          notes: form.notes || null,
-        }),
+  const handleImport = async () => {
+    const rows = csvText
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line && !line.toLowerCase().startsWith('title,'))
+      .map(line => {
+        const [title, date, ...notesParts] = line.split(',').map(s => s.trim())
+        return { title, date, notes: notesParts.join(',').trim() || undefined }
       })
-      if (!res.ok) {
-        const { error } = await res.json().catch(() => ({ error: 'Failed' }))
-        throw new Error(error)
-      }
-      toast.success('Meeting updated')
-      setEditing(null)
-      fetchMeetings()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to update meeting')
-    } finally {
-      setSaving(false)
-    }
-  }
+      .filter(r => r.title && r.date)
 
-  const handleDelete = async () => {
-    if (!deleting) return
+    if (rows.length === 0) {
+      toast.error('No valid rows. Format: Title,YYYY-MM-DD,Notes')
+      return
+    }
+
     setSaving(true)
-    try {
-      const res = await fetch(`/api/v2/admin/meetings/${deleting.id}`, { method: 'DELETE' })
-      if (!res.ok) {
-        const { error } = await res.json().catch(() => ({ error: 'Failed' }))
-        throw new Error(error)
+    let created = 0
+    let failed = 0
+    for (const r of rows) {
+      try {
+        const res = await fetch('/api/v2/admin/meetings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: r.title,
+            meetingType: 'monthly',
+            meetingDate: r.date,
+            notes: r.notes,
+          }),
+        })
+        if (res.ok) created++
+        else failed++
+      } catch {
+        failed++
       }
-      toast.success('Meeting deleted')
-      setDeleting(null)
-      fetchMeetings()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to delete meeting')
-    } finally {
-      setSaving(false)
     }
-  }
-
-  const toggleAttendance = async (meeting: Meeting, organizationName: string, attended: boolean) => {
-    // optimistic
-    setMeetings(prev => prev.map(m => {
-      if (m.id !== meeting.id) return m
-      const existing = m.attendance.find(a => a.organizationName === organizationName)
-      const newAttendance = existing
-        ? m.attendance.map(a => a.organizationName === organizationName ? { ...a, attended } : a)
-        : [...m.attendance, { id: 'optimistic', organizationName, attended }]
-      return { ...m, attendance: newAttendance }
-    }))
-    try {
-      const res = await fetch(`/api/v2/admin/meetings/${meeting.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ attendance: [{ organizationName, attended }] }),
-      })
-      if (!res.ok) throw new Error('Failed to update attendance')
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to update attendance')
-      fetchMeetings()
-    }
+    setSaving(false)
+    if (created) toast.success(`Imported ${created} meeting${created === 1 ? '' : 's'}${failed ? ` (${failed} failed)` : ''}`)
+    if (!created && failed) toast.error(`Failed to import ${failed} row(s)`)
+    setImportOpen(false)
+    setCsvText('')
+    fetchMeetings()
   }
 
   const attendeesFor = (m: Meeting) =>
@@ -216,11 +159,16 @@ export default function MeetingsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold">Meetings</h2>
-          <p className="text-sm text-muted-foreground">Schedule monthly and annual meetings and track which orgs attended.</p>
+          <p className="text-sm text-muted-foreground">Monthly meetings, NAPAAM, and other gatherings. Click a row to manage attendance.</p>
         </div>
-        <Button onClick={openCreate}>
-          <CalendarPlus className="h-4 w-4 mr-2" />Add Meeting
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <FileUp className="h-4 w-4 mr-2" />Import CSV
+          </Button>
+          <Button onClick={openCreate}>
+            <CalendarPlus className="h-4 w-4 mr-2" />Add Meeting
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -231,81 +179,53 @@ export default function MeetingsPage() {
         <div className="text-center py-16 border rounded-lg">
           <CalendarPlus className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
           <h3 className="font-semibold mb-1">No meetings yet</h3>
-          <p className="text-sm text-muted-foreground">Create a meeting to start tracking attendance.</p>
+          <p className="text-sm text-muted-foreground">Create a meeting or import a CSV to get started.</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {meetings.map(m => {
-            const attendees = attendeesFor(m)
-            const isLow = (m.meetingType === 'monthly' || m.meetingType === 'annual') && attendees < MIN_ATTENDEES
-            return (
-              <CardFrame key={m.id} className="w-full">
-                <div className="flex items-center justify-between px-4 py-3 border-b">
-                  <div className="flex items-center gap-3">
-                    <Badge variant="outline">{TYPE_LABEL[m.meetingType]}</Badge>
-                    <div>
-                      <p className="font-medium">{m.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(m.meetingDate).toLocaleDateString()} · {attendees} attendee{attendees === 1 ? '' : 's'}
-                      </p>
-                    </div>
-                    {isLow && (
-                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                        <AlertTriangle className="h-3 w-3 mr-1" /> below minimum
-                      </Badge>
-                    )}
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-8 w-8" />}>
-                      <MoreHorizontal className="h-4 w-4" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openEdit(m)}>
-                        <SquarePen className="h-4 w-4" /> Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem variant="destructive" onClick={() => setDeleting(m)}>
-                        <Trash className="h-4 w-4" /> Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                <Table variant="card" className="border-t-0">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Organization</TableHead>
-                      <TableHead className="w-28 text-center">Attended</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {orgs.map(org => {
-                      const attended = m.attendance.find(a => a.organizationName === org.organizationName)?.attended ?? false
-                      return (
-                        <TableRow key={org.organizationName}>
-                          <TableCell>{org.organizationName}</TableCell>
-                          <TableCell className="text-center">
-                            <Checkbox
-                              checked={attended}
-                              onCheckedChange={(v) => toggleAttendance(m, org.organizationName, !!v)}
-                              aria-label={`${org.organizationName} attended ${m.title}`}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                    {orgs.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={2} className="text-center text-sm text-muted-foreground py-6">
-                          <Users className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
-                          No organizations to track attendance for.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </CardFrame>
-            )
-          })}
-        </div>
+        <CardFrame className="w-full">
+          <Table variant="card">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Meeting</TableHead>
+                <TableHead className="w-32">Type</TableHead>
+                <TableHead className="w-32">Date</TableHead>
+                <TableHead className="w-32 text-right">Attended</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {meetings.map(m => {
+                const attendees = attendeesFor(m)
+                const isLow = (m.meetingType === 'monthly' || m.meetingType === 'annual') && attendees < MIN_ATTENDEES
+                return (
+                  <TableRow key={m.id}>
+                    <TableCell>
+                      <Link href={`/admin/meetings/${m.id}`} className="font-medium hover:underline hover:text-primary">
+                        {m.title}
+                      </Link>
+                      {m.notes && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{m.notes}</p>}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{TYPE_LABEL[m.meetingType]}</Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground tabular-nums">
+                      {new Date(m.meetingDate).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="inline-flex items-center gap-2">
+                        <span className="tabular-nums">{attendees}</span>
+                        {isLow && (
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                            <AlertTriangle className="h-3 w-3" />
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </CardFrame>
       )}
 
       {/* Create */}
@@ -314,9 +234,40 @@ export default function MeetingsPage() {
           <form onSubmit={handleCreate} className="space-y-4">
             <DialogHeader>
               <DialogTitle>Add Meeting</DialogTitle>
-              <DialogDescription>Create a meeting record. Track attendance from the row that appears in the list.</DialogDescription>
+              <DialogDescription>Attendance is managed from the meeting detail page after creation.</DialogDescription>
             </DialogHeader>
-            <MeetingFormFields form={form} setForm={setForm} />
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="meeting-title">Title *</Label>
+                <Input id="meeting-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} autoFocus required />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="meeting-type">Type</Label>
+                  <Select value={form.meetingType} onValueChange={(v) => setForm({ ...form, meetingType: v as MeetingType })}>
+                    <SelectTrigger id="meeting-type">
+                      <span>{TYPE_LABEL[form.meetingType]}</span>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                      <SelectItem value="annual">NAPAAM</SelectItem>
+                      <SelectItem value="board">Board</SelectItem>
+                      <SelectItem value="committee">Committee</SelectItem>
+                      <SelectItem value="special">Special</SelectItem>
+                      <SelectItem value="general">General</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="meeting-date">Date *</Label>
+                  <Input id="meeting-date" type="date" value={form.meetingDate} onChange={(e) => setForm({ ...form, meetingDate: e.target.value })} required />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="meeting-notes">Notes</Label>
+                <Textarea id="meeting-notes" rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              </div>
+            </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
               <Button type="submit" disabled={saving || !form.title.trim() || !form.meetingDate}>
@@ -327,107 +278,30 @@ export default function MeetingsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit */}
-      <Dialog open={!!editing} onOpenChange={(v) => !v && setEditing(null)}>
-        <DialogContent>
-          <form onSubmit={handleUpdate} className="space-y-4">
-            <DialogHeader>
-              <DialogTitle>Edit Meeting</DialogTitle>
-              <DialogDescription>Update meeting details. Attendance is managed inline in the list.</DialogDescription>
-            </DialogHeader>
-            <MeetingFormFields form={form} setForm={setForm} />
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
-              <Button type="submit" disabled={saving || !form.title.trim() || !form.meetingDate}>
-                {saving ? 'Saving...' : 'Save'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete */}
-      <Dialog open={!!deleting} onOpenChange={(v) => !v && setDeleting(null)}>
+      {/* CSV import */}
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete {deleting?.title}?</DialogTitle>
+            <DialogTitle>Import monthly meetings</DialogTitle>
             <DialogDescription>
-              This deletes the meeting and all its attendance records. This cannot be undone.
+              Paste rows in <code className="px-1 py-0.5 bg-muted rounded text-xs">Title,YYYY-MM-DD,Notes</code> format. One per line. All imports are tagged as monthly meetings.
             </DialogDescription>
           </DialogHeader>
+          <Textarea
+            rows={10}
+            placeholder={"Title,2026-01-15,Optional notes\nMonthly Meeting Feb,2026-02-12"}
+            value={csvText}
+            onChange={(e) => setCsvText(e.target.value)}
+            className="font-mono text-xs"
+          />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={saving}>
-              {saving ? 'Deleting...' : 'Delete'}
+            <Button variant="outline" onClick={() => setImportOpen(false)}>Cancel</Button>
+            <Button onClick={handleImport} disabled={saving || !csvText.trim()}>
+              {saving ? 'Importing...' : 'Import'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  )
-}
-
-interface MeetingForm {
-  title: string
-  meetingType: MeetingType
-  meetingDate: string
-  notes: string
-}
-
-function MeetingFormFields({
-  form,
-  setForm,
-}: {
-  form: MeetingForm
-  setForm: (next: MeetingForm) => void
-}) {
-  return (
-    <div className="space-y-3">
-      <div className="space-y-1.5">
-        <Label htmlFor="meeting-title">Title *</Label>
-        <Input
-          id="meeting-title"
-          value={form.title}
-          onChange={(e) => setForm({ ...form, title: e.target.value })}
-          autoFocus
-          required
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="meeting-type">Type</Label>
-          <Select value={form.meetingType} onValueChange={(v) => setForm({ ...form, meetingType: v as MeetingType })}>
-            <SelectTrigger id="meeting-type"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="monthly">Monthly</SelectItem>
-              <SelectItem value="annual">Annual</SelectItem>
-              <SelectItem value="board">Board</SelectItem>
-              <SelectItem value="committee">Committee</SelectItem>
-              <SelectItem value="special">Special</SelectItem>
-              <SelectItem value="general">General</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="meeting-date">Date *</Label>
-          <Input
-            id="meeting-date"
-            type="date"
-            value={form.meetingDate}
-            onChange={(e) => setForm({ ...form, meetingDate: e.target.value })}
-            required
-          />
-        </div>
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="meeting-notes">Notes</Label>
-        <Textarea
-          id="meeting-notes"
-          rows={3}
-          value={form.notes}
-          onChange={(e) => setForm({ ...form, notes: e.target.value })}
-        />
-      </div>
     </div>
   )
 }

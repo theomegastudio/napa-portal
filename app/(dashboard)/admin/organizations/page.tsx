@@ -26,6 +26,7 @@ interface OrgRow {
   slug: string | null
   logoUrl: string | null
   isActive: boolean
+  inactivatedAt: string | null
   createdAt: string
   memberCount: number
   displayOrder: number
@@ -34,20 +35,14 @@ interface OrgRow {
 
 interface FormState {
   organizationName: string
-  slug: string
-  logoUrl: string
   isActive: boolean
   memberCount: string
-  displayOrder: string
 }
 
 const emptyForm: FormState = {
   organizationName: '',
-  slug: '',
-  logoUrl: '',
   isActive: true,
   memberCount: '0',
-  displayOrder: '0',
 }
 
 export default function AdminOrganizationsPage() {
@@ -86,11 +81,8 @@ export default function AdminOrganizationsPage() {
   const openEdit = (org: OrgRow) => {
     setForm({
       organizationName: org.organizationName,
-      slug: org.slug ?? '',
-      logoUrl: org.logoUrl ?? '',
       isActive: org.isActive,
       memberCount: String(org.memberCount ?? 0),
-      displayOrder: String(org.displayOrder ?? 0),
     })
     setEditing(org)
   }
@@ -104,10 +96,7 @@ export default function AdminOrganizationsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           organizationName: form.organizationName,
-          slug: form.slug || undefined,
-          logoUrl: form.logoUrl || undefined,
           memberCount: Number(form.memberCount) || 0,
-          displayOrder: Number(form.displayOrder) || 0,
         }),
       })
       if (!res.ok) {
@@ -134,11 +123,8 @@ export default function AdminOrganizationsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           organizationName: form.organizationName,
-          slug: form.slug || null,
-          logoUrl: form.logoUrl || null,
           isActive: form.isActive,
           memberCount: Number(form.memberCount) || 0,
-          displayOrder: Number(form.displayOrder) || 0,
         }),
       })
       if (!res.ok) {
@@ -204,43 +190,15 @@ export default function AdminOrganizationsPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="new-slug">Slug</Label>
+                  <Label htmlFor="new-members">Members</Label>
                   <Input
-                    id="new-slug"
-                    value={form.slug}
-                    onChange={(e) => setForm({ ...form, slug: e.target.value })}
-                    placeholder="optional-slug"
+                    id="new-members"
+                    type="number"
+                    min={0}
+                    value={form.memberCount}
+                    onChange={(e) => setForm({ ...form, memberCount: e.target.value })}
                   />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="new-logo">Logo URL</Label>
-                  <Input
-                    id="new-logo"
-                    value={form.logoUrl}
-                    onChange={(e) => setForm({ ...form, logoUrl: e.target.value })}
-                    placeholder="https://..."
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="new-members">Members</Label>
-                    <Input
-                      id="new-members"
-                      type="number"
-                      min={0}
-                      value={form.memberCount}
-                      onChange={(e) => setForm({ ...form, memberCount: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="new-order">Display order</Label>
-                    <Input
-                      id="new-order"
-                      type="number"
-                      value={form.displayOrder}
-                      onChange={(e) => setForm({ ...form, displayOrder: e.target.value })}
-                    />
-                  </div>
+                  <p className="text-xs text-muted-foreground">Manual headcount.</p>
                 </div>
               </div>
               <DialogFooter>
@@ -269,9 +227,7 @@ export default function AdminOrganizationsPage() {
           <Table variant="card">
             <TableHeader>
               <TableRow>
-                <TableHead className="w-16 text-center">Order</TableHead>
                 <TableHead>Name</TableHead>
-                <TableHead>Slug</TableHead>
                 <TableHead className="text-right">Members</TableHead>
                 <TableHead className="text-right">Resources</TableHead>
                 <TableHead>Status</TableHead>
@@ -281,16 +237,20 @@ export default function AdminOrganizationsPage() {
             <TableBody>
               {orgs.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((org) => (
                 <TableRow key={org.id}>
-                  <TableCell className="text-center text-muted-foreground tabular-nums">{org.displayOrder}</TableCell>
-                  <TableCell className="font-medium">{org.organizationName}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm">{org.slug ?? '—'}</TableCell>
+                  <TableCell className="font-medium">
+                    <a href={`/admin/organizations/${encodeURIComponent(org.organizationName)}`} className="hover:underline hover:text-primary">
+                      {org.organizationName}
+                    </a>
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{org.memberCount}</TableCell>
                   <TableCell className="text-right tabular-nums">{org.resourceCount}</TableCell>
                   <TableCell>
                     {org.isActive ? (
-                      <Badge variant="secondary">Active</Badge>
+                      <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">Active</Badge>
                     ) : (
-                      <Badge variant="outline" className="text-muted-foreground">Inactive</Badge>
+                      <Badge variant="outline" className="bg-red-100 text-red-800 border-red-200" title={org.inactivatedAt ? `Inactive since ${new Date(org.inactivatedAt).toLocaleDateString()}` : undefined}>
+                        Inactive{org.inactivatedAt ? ` · ${new Date(org.inactivatedAt).toLocaleDateString()}` : ''}
+                      </Badge>
                     )}
                   </TableCell>
                   <TableCell>
@@ -342,47 +302,15 @@ export default function AdminOrganizationsPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="edit-slug">Slug</Label>
+                <Label htmlFor="edit-members">Members</Label>
                 <Input
-                  id="edit-slug"
-                  value={form.slug}
-                  onChange={(e) => setForm({ ...form, slug: e.target.value })}
+                  id="edit-members"
+                  type="number"
+                  min={0}
+                  value={form.memberCount}
+                  onChange={(e) => setForm({ ...form, memberCount: e.target.value })}
                 />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="edit-logo">Logo URL</Label>
-                <Input
-                  id="edit-logo"
-                  value={form.logoUrl}
-                  onChange={(e) => setForm({ ...form, logoUrl: e.target.value })}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-members">Members</Label>
-                  <Input
-                    id="edit-members"
-                    type="number"
-                    min={0}
-                    value={form.memberCount}
-                    onChange={(e) => setForm({ ...form, memberCount: e.target.value })}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Manual headcount. Not derived from platform users.
-                  </p>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-order">Display order</Label>
-                  <Input
-                    id="edit-order"
-                    type="number"
-                    value={form.displayOrder}
-                    onChange={(e) => setForm({ ...form, displayOrder: e.target.value })}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Lower numbers appear first on Org Health.
-                  </p>
-                </div>
+                <p className="text-xs text-muted-foreground">Manual headcount.</p>
               </div>
               <label className="flex items-center gap-2 text-sm">
                 <input
@@ -390,7 +318,11 @@ export default function AdminOrganizationsPage() {
                   checked={form.isActive}
                   onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
                 />
-                Active
+                Active {!form.isActive && editing?.inactivatedAt && (
+                  <span className="text-muted-foreground text-xs">
+                    (inactive since {new Date(editing.inactivatedAt).toLocaleDateString()})
+                  </span>
+                )}
               </label>
             </div>
             <DialogFooter>

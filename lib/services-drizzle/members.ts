@@ -43,13 +43,30 @@ export async function getOrgMembers(
 export async function inviteUser(
   email: string,
   organizationName: string,
-  isAdmin: boolean
+  isAdmin: boolean,
+  role?: 'user' | 'admin' | 'napaBoard' | 'napaDirector',
 ) {
   const currentUser = await requireApprovedAuth();
 
   // Verify permission - must be org admin or NAPA admin
   if (!currentUser.isNapaAdmin && !currentUser.isAdmin) {
     throw new Error('Unauthorized: Admin access required to invite members');
+  }
+
+  // Only napaBoard can grant napaBoard / napaDirector roles
+  const NAPA_ORG_NAME = 'National APIDA Panhellenic Association';
+  let assignedRole: string = 'user';
+  if (role && (role === 'napaBoard' || role === 'napaDirector')) {
+    if (organizationName !== NAPA_ORG_NAME) {
+      throw new Error('NAPA roles can only be granted to users in the NAPA organization');
+    }
+    if (currentUser.role !== 'napaBoard') {
+      throw new Error('Only NAPA Board can grant NAPA Board / NAPA Director roles');
+    }
+    assignedRole = role;
+  } else if (role === 'admin') {
+    assignedRole = 'user';
+    isAdmin = true;
   }
 
   // Verify org access
@@ -83,6 +100,7 @@ export async function inviteUser(
       .set({
         organizationName,
         isAdmin,
+        role: assignedRole,
         approvalStatus: 'approved',
         approvedBy: currentUser.id,
         approvedAt: new Date(),
@@ -114,6 +132,7 @@ export async function inviteUser(
       email: email.toLowerCase(),
       organizationName,
       isAdmin,
+      role: assignedRole,
       approvalStatus: 'approved',
       approvedBy: currentUser.id,
       approvedAt: new Date(),

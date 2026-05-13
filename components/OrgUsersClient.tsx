@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Loader2, SquarePen, Trash2, Search, UserPlus, Shield, MoreHorizontal, Users } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -44,6 +45,7 @@ export default function OrgUsersClient({ organizationName, currentUserId }: OrgU
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteAsAdmin, setInviteAsAdmin] = useState(false)
+  const [inviteRole, setInviteRole] = useState<'user' | 'admin' | 'napaBoard' | 'napaDirector'>('user')
   const [isInviting, setIsInviting] = useState(false)
 
   // Edit dialog state
@@ -108,14 +110,19 @@ export default function OrgUsersClient({ organizationName, currentUserId }: OrgU
 
     setIsInviting(true)
     try {
+      const isNapaOrg = organizationName === 'National APIDA Panhellenic Association'
+      const payload: Record<string, unknown> = {
+        email: inviteEmail,
+        organizationName,
+        isAdmin: isNapaOrg ? (inviteRole === 'admin') : inviteAsAdmin,
+      }
+      if (isNapaOrg && (inviteRole === 'napaBoard' || inviteRole === 'napaDirector')) {
+        payload.role = inviteRole
+      }
       const response = await fetch('/api/v2/members', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: inviteEmail,
-          organizationName,
-          isAdmin: inviteAsAdmin
-        })
+        body: JSON.stringify(payload),
       })
       if (!response.ok) {
         const error = await response.json()
@@ -338,16 +345,38 @@ export default function OrgUsersClient({ organizationName, currentUserId }: OrgU
               />
             </div>
 
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="invite-admin"
-                checked={inviteAsAdmin}
-                onCheckedChange={(checked) => setInviteAsAdmin(checked as boolean)}
-              />
-              <Label htmlFor="invite-admin" className="text-sm cursor-pointer font-normal">
-                Make Admin
-              </Label>
-            </div>
+            {organizationName === 'National APIDA Panhellenic Association' ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="invite-role" className="text-sm font-medium">NAPA Role</Label>
+                <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as 'user' | 'admin' | 'napaBoard' | 'napaDirector')}>
+                  <SelectTrigger id="invite-role" className="border-gray-300">
+                    <span>
+                      {inviteRole === 'napaBoard' ? 'NAPA Board' :
+                       inviteRole === 'napaDirector' ? 'NAPA Director' :
+                       inviteRole === 'admin' ? 'Admin' : 'User'}
+                    </span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">User</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="napaDirector">NAPA Director</SelectItem>
+                    <SelectItem value="napaBoard">NAPA Board</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="invite-admin"
+                  checked={inviteAsAdmin}
+                  onCheckedChange={(checked) => setInviteAsAdmin(checked as boolean)}
+                  className="border-gray-300"
+                />
+                <Label htmlFor="invite-admin" className="text-sm cursor-pointer font-normal">
+                  Make Admin
+                </Label>
+              </div>
+            )}
 
             <div className="flex justify-end gap-3 pt-4">
               <Button

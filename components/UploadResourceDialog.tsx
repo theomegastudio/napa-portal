@@ -205,7 +205,7 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
               type="file"
               multiple
               onChange={handleFileSelect}
-              className="h-9 cursor-pointer"
+              className="h-9 cursor-pointer file:mr-3 file:rounded-md file:border-0 file:bg-primary/10 file:px-3 file:py-1 file:text-sm file:font-medium file:text-primary file:hover:bg-primary/20"
               accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.gif"
             />
             <p className="text-xs text-muted-foreground">

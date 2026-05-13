@@ -87,10 +87,11 @@ export interface OrganizationWithCounts {
   slug: string | null;
   logoUrl: string | null;
   isActive: boolean;
+  inactivatedAt: Date | null;
   createdAt: Date;
   /** Manually tracked headcount stored on the org row. NOT derived from users. */
   memberCount: number;
-  /** Manual sort order for Org Health and other ordered lists. */
+  /** Manual sort order. UI sorts alphabetically; kept for future. */
   displayOrder: number;
   /** Active resources owned by the org, derived. */
   resourceCount: number;
@@ -103,10 +104,7 @@ export async function listOrganizationsWithCounts(): Promise<OrganizationWithCou
   const orgs = await db
     .select()
     .from(organizations)
-    .orderBy(
-      sql`${organizations.displayOrder} ASC`,
-      sql`LOWER(${organizations.organizationName})`,
-    );
+    .orderBy(sql`LOWER(${organizations.organizationName})`);
 
   const resourceRows = await db
     .select({ org: resources.organization, c: count() })
@@ -121,6 +119,7 @@ export async function listOrganizationsWithCounts(): Promise<OrganizationWithCou
     slug: o.slug,
     logoUrl: o.logoUrl,
     isActive: o.isActive,
+    inactivatedAt: o.inactivatedAt,
     createdAt: o.createdAt,
     memberCount: o.memberCount ?? 0,
     displayOrder: o.displayOrder ?? 0,
@@ -184,7 +183,15 @@ export async function updateOrganizationById(
   }
   if (patch.slug !== undefined) updates.slug = patch.slug ?? null;
   if (patch.logoUrl !== undefined) updates.logoUrl = patch.logoUrl ?? null;
-  if (patch.isActive !== undefined) updates.isActive = patch.isActive;
+  if (patch.isActive !== undefined) {
+    updates.isActive = patch.isActive;
+    // Maintain inactivatedAt: set when flipping to inactive, clear when reactivating.
+    if (patch.isActive && target.inactivatedAt) {
+      updates.inactivatedAt = null;
+    } else if (!patch.isActive && !target.inactivatedAt) {
+      updates.inactivatedAt = new Date();
+    }
+  }
   if (patch.memberCount !== undefined) {
     if (patch.memberCount < 0 || !Number.isFinite(patch.memberCount)) {
       throw new Error('Member count must be a non-negative number');

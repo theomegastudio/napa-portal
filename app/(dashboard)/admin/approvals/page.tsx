@@ -136,15 +136,6 @@ export default function AdminApprovalsPage() {
               {filteredUsers.length} {filteredUsers.length === 1 ? 'user' : 'users'} awaiting approval
             </p>
           </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by email, name, or organization..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 w-full md:w-72"
-            />
-          </div>
         </div>
 
         {filteredUsers.length === 0 ? (

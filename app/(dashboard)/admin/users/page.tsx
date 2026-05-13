@@ -65,7 +65,15 @@ export default function AdminUsersPage() {
   const [selectedOrg, setSelectedOrg] = useState<string>('all')
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
   const [page, setPage] = useState(0)
+  const [sortField, setSortField] = useState<'email' | 'organizationName' | 'role' | 'approvalStatus' | 'createdAt'>('createdAt')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const PAGE_SIZE = 10
+  const NAPA_ORG_NAME = 'National APIDA Panhellenic Association'
+
+  const toggleSort = (field: typeof sortField) => {
+    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortField(field); setSortDir('asc') }
+  }
 
   const currentUser = session?.user as ExtendedUser | undefined
 
@@ -102,7 +110,12 @@ export default function AdminUsersPage() {
   }, [])
 
   useEffect(() => {
-    let filtered = users
+    // Hide NAPA staff from this page entirely (Board / Director / NAPA-org users)
+    let filtered = users.filter(u =>
+      u.organizationName !== NAPA_ORG_NAME &&
+      u.role !== 'napaBoard' &&
+      u.role !== 'napaDirector',
+    )
     if (searchQuery) {
       filtered = filtered.filter(u =>
         u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -115,9 +128,17 @@ export default function AdminUsersPage() {
       if (selectedStatus === 'banned') filtered = filtered.filter(u => u.banned)
       else filtered = filtered.filter(u => u.approvalStatus === selectedStatus && !u.banned)
     }
-    setFilteredUsers(filtered)
+    const sorted = [...filtered].sort((a, b) => {
+      const av = (a[sortField] ?? '') as string
+      const bv = (b[sortField] ?? '') as string
+      const cmp = sortField === 'createdAt'
+        ? new Date(av).getTime() - new Date(bv).getTime()
+        : String(av).localeCompare(String(bv), undefined, { sensitivity: 'base' })
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+    setFilteredUsers(sorted)
     setPage(0)
-  }, [searchQuery, selectedOrg, selectedStatus, users])
+  }, [searchQuery, selectedOrg, selectedStatus, users, sortField, sortDir])
 
   const fetchData = async () => {
     try {
@@ -286,14 +307,20 @@ export default function AdminUsersPage() {
             <Input placeholder="Search by email, name, or org..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
           </div>
           <Select value={selectedOrg} onValueChange={setSelectedOrg}>
-            <SelectTrigger className="w-full md:w-48"><SelectValue placeholder="Filter by organization" /></SelectTrigger>
+            <SelectTrigger className="w-full md:w-48">
+              <span>{selectedOrg === 'all' ? 'All Organizations' : selectedOrg}</span>
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Organizations</SelectItem>
-              {organizations.map((org) => <SelectItem key={org.id} value={org.organizationName}>{org.organizationName}</SelectItem>)}
+              {organizations
+                .filter(org => org.organizationName !== NAPA_ORG_NAME)
+                .map((org) => <SelectItem key={org.id} value={org.organizationName}>{org.organizationName}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-            <SelectTrigger className="w-full md:w-40"><SelectValue placeholder="Filter by status" /></SelectTrigger>
+            <SelectTrigger className="w-full md:w-40">
+              <span>{selectedStatus === 'all' ? 'All Statuses' : selectedStatus.charAt(0).toUpperCase() + selectedStatus.slice(1)}</span>
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="approved">Approved</SelectItem>
@@ -315,11 +342,31 @@ export default function AdminUsersPage() {
             <Table variant="card">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Organization</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Joined</TableHead>
+                    <TableHead>
+                      <button className="flex items-center gap-1 hover:text-foreground" onClick={() => toggleSort('email')}>
+                        User {sortField === 'email' && (sortDir === 'asc' ? '↑' : '↓')}
+                      </button>
+                    </TableHead>
+                    <TableHead>
+                      <button className="flex items-center gap-1 hover:text-foreground" onClick={() => toggleSort('organizationName')}>
+                        Organization {sortField === 'organizationName' && (sortDir === 'asc' ? '↑' : '↓')}
+                      </button>
+                    </TableHead>
+                    <TableHead>
+                      <button className="flex items-center gap-1 hover:text-foreground" onClick={() => toggleSort('role')}>
+                        Role {sortField === 'role' && (sortDir === 'asc' ? '↑' : '↓')}
+                      </button>
+                    </TableHead>
+                    <TableHead>
+                      <button className="flex items-center gap-1 hover:text-foreground" onClick={() => toggleSort('approvalStatus')}>
+                        Status {sortField === 'approvalStatus' && (sortDir === 'asc' ? '↑' : '↓')}
+                      </button>
+                    </TableHead>
+                    <TableHead>
+                      <button className="flex items-center gap-1 hover:text-foreground" onClick={() => toggleSort('createdAt')}>
+                        Joined {sortField === 'createdAt' && (sortDir === 'asc' ? '↑' : '↓')}
+                      </button>
+                    </TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -334,11 +381,7 @@ export default function AdminUsersPage() {
                       </TableCell>
                       <TableCell className="text-muted-foreground">{user.organizationName || <span className="italic">Not set</span>}</TableCell>
                       <TableCell>
-                        {user.isNapaBoard ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"><ShieldCheck className="h-3 w-3 mr-1" />NAPA Board</span>
-                        ) : user.isNapaDirector ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800"><ShieldCheck className="h-3 w-3 mr-1" />NAPA Director</span>
-                        ) : user.isAdmin ? (
+                        {user.isAdmin ? (
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary"><Shield className="h-3 w-3 mr-1" />Admin</span>
                         ) : (
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">Member</span>
@@ -452,41 +495,6 @@ export default function AdminUsersPage() {
               <Label htmlFor="edit-admin" className="cursor-pointer">Org-level admin privileges</Label>
             </div>
 
-            {currentIsNapaBoard && (
-              <>
-                <div className="space-y-2 pt-2 border-t">
-                  <Label htmlFor="edit-role">NAPA Role</Label>
-                  <Select
-                    value={editForm.role}
-                    onValueChange={(v) => setEditForm({ ...editForm, role: v as RoleValue })}
-                    disabled={isSaving}
-                  >
-                    <SelectTrigger id="edit-role"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="user">User</SelectItem>
-                      <SelectItem value="admin">Admin (legacy)</SelectItem>
-                      <SelectItem value="napaDirector">NAPA Director</SelectItem>
-                      <SelectItem value="napaBoard">NAPA Board</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Board: full admin + can approve users, manage orgs, grant roles. Director: read+write across orgs, no approvals.
-                  </p>
-                </div>
-
-                {editForm.role === 'napaDirector' && (
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="edit-org-health"
-                      checked={editForm.canViewOrgHealth}
-                      onCheckedChange={(c) => setEditForm({ ...editForm, canViewOrgHealth: c as boolean })}
-                      disabled={isSaving}
-                    />
-                    <Label htmlFor="edit-org-health" className="cursor-pointer">Grant access to Org Health</Label>
-                  </div>
-                )}
-              </>
-            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={isSaving}>Cancel</Button>

@@ -218,7 +218,7 @@ export default function ResourcesPage() {
         </div>
         <Select value={resourceType} onValueChange={setResourceType}>
           <SelectTrigger className="w-full sm:w-44">
-            <SelectValue placeholder="Filter by type" />
+            <span>{resourceType === 'all' ? 'All Types' : resourceType}</span>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
