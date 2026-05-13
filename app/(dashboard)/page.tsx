@@ -159,11 +159,13 @@ export default function ResourcesPage() {
     isNapaAdmin ||
     (user?.isAdmin === true && user?.organizationName === resource.organization)
 
+  // Only an admin from the resource's owning org can delete or archive it -
+  // NAPA staff and other-org admins are intentionally locked out.
   const canDelete = (resource: ResourceRow) =>
-    isNapaAdmin || (user?.isAdmin === true && user?.organizationName === resource.organization)
+    user?.isAdmin === true && user?.organizationName === resource.organization
 
   const canArchive = (resource: ResourceRow) =>
-    isNapaAdmin || (user?.isAdmin === true && user?.organizationName === resource.organization)
+    user?.isAdmin === true && user?.organizationName === resource.organization
 
   const displayed = showArchived
     ? resources

@@ -89,7 +89,7 @@ export async function GET(
     })
     return NextResponse.redirect(signedUrl)
   } catch {
-    // Signed URL generation failed — fall back to public URL
+    // Signed URL generation failed - fall back to public URL
     return NextResponse.redirect(fileUrl)
   }
 }

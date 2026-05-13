@@ -100,6 +100,7 @@ export async function createResource(params: {
   resourceType: string;
   externalLink?: string;
   files?: { url: string; name?: string }[];
+  allowDownload?: boolean;
 }) {
   const user = await requireApprovedAuth();
 
@@ -123,6 +124,7 @@ export async function createResource(params: {
         externalLink: params.externalLink,
         organization: user.organizationName!,
         uploadedBy: user.email,
+        ...(params.allowDownload !== undefined ? { allowDownload: params.allowDownload } : {}),
       })
       .returning();
 

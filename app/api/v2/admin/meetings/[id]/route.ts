@@ -40,7 +40,7 @@ export async function PATCH(
       await db.update(meetings).set(updates).where(eq(meetings.id, id))
     }
 
-    // attendance: array of { organizationName, attended, attendeeCount? } — upsert each.
+    // attendance: array of { organizationName, attended, attendeeCount? } - upsert each.
     // attendeeCount overrides attended when present (count > 0 implies attended).
     if (Array.isArray(attendance)) {
       for (const a of attendance) {

@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       });
 
       if (!existingAccount && existingUser.approvalStatus === 'approved') {
-        // This is a pre-invited user — complete their account setup
+        // This is a pre-invited user - complete their account setup
         const hashedPassword = await hashPassword(password);
 
         // Update user record with name
@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
     // Only NAPA emails are auto-approved, all others require approval
     const approvalStatus: 'pending' | 'approved' = isNapaEmail ? 'approved' : 'pending';
 
-    // Role defaults to 'user' — napaBoard/napaDirector roles are granted manually by an existing NAPA Board member
+    // Role defaults to 'user' - napaBoard/napaDirector roles are granted manually by an existing NAPA Board member
     const role = 'user';
 
     // Create user (BetterAuth compatible)

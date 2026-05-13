@@ -44,12 +44,11 @@ export function canEditResource(user: SessionUser, resourceOrg: string, uploaded
 
 /**
  * Whether the user can permanently delete a resource.
- * NAPA user or same-org admin.
+ * Only an admin from the owning org. NAPA staff intentionally not allowed to
+ * delete other orgs' resources.
  */
 export function canDeleteResource(user: SessionUser, resourceOrg: string): boolean {
-  if (isNapaUser(user)) return true
-  if (user.organizationName !== resourceOrg) return false
-  return !!user.isAdmin
+  return user.organizationName === resourceOrg && !!user.isAdmin
 }
 
 /**

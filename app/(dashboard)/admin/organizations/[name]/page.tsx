@@ -40,9 +40,15 @@ interface MeetingRow {
   attendance: { organizationName: string; attended: boolean }[]
 }
 
+/** Match orgs by their kebab-slug form so URLs like `/admin/organizations/alpha-kappa-delta-phi` are readable. */
+function slugify(name: string) {
+  return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+}
+
 export default function OrgDetailPage() {
   const params = useParams<{ name: string }>()
-  const organizationName = decodeURIComponent(params.name)
+  const urlSlug = decodeURIComponent(params.name)
+  const [organizationName, setOrganizationName] = useState<string>('')
 
   const [org, setOrg] = useState<OrgInfo | null>(null)
   const [leaders, setLeaders] = useState<Leader[]>([])
@@ -58,15 +64,18 @@ export default function OrgDetailPage() {
   const fetchAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [orgsRes, leadersRes, meetingsRes] = await Promise.all([
-        fetch('/api/v2/admin/organizations'),
-        fetch(`/api/v2/admin/org-leaders?organization=${encodeURIComponent(organizationName)}`),
+      const orgsRes = await fetch('/api/v2/admin/organizations')
+      if (!orgsRes.ok) throw new Error('orgs')
+      const orgs: OrgInfo[] = await orgsRes.json()
+      // Match by slug OR exact name (legacy links may still encode name).
+      const found = orgs.find(o => slugify(o.organizationName) === urlSlug || o.organizationName === urlSlug) ?? null
+      setOrg(found)
+      if (!found) return
+      setOrganizationName(found.organizationName)
+      const [leadersRes, meetingsRes] = await Promise.all([
+        fetch(`/api/v2/admin/org-leaders?organization=${encodeURIComponent(found.organizationName)}`),
         fetch('/api/v2/admin/meetings'),
       ])
-      if (orgsRes.ok) {
-        const orgs: OrgInfo[] = await orgsRes.json()
-        setOrg(orgs.find(o => o.organizationName === organizationName) ?? null)
-      }
       if (leadersRes.ok) setLeaders(await leadersRes.json())
       if (meetingsRes.ok) {
         const all: MeetingRow[] = await meetingsRes.json()
@@ -82,7 +91,7 @@ export default function OrgDetailPage() {
     } finally {
       setLoading(false)
     }
-  }, [organizationName, currentYear])
+  }, [urlSlug, currentYear])
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
@@ -207,9 +216,9 @@ export default function OrgDetailPage() {
                 {leaders.map(l => (
                   <TableRow key={l.id} onClick={() => openEditLeader(l)} className="cursor-pointer">
                     <TableCell className="font-medium">{l.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{l.role ?? '—'}</TableCell>
-                    <TableCell className="text-muted-foreground">{l.email ?? '—'}</TableCell>
-                    <TableCell className="text-muted-foreground">{l.phone ?? '—'}</TableCell>
+                    <TableCell className="text-muted-foreground">{l.role ?? '-'}</TableCell>
+                    <TableCell className="text-muted-foreground">{l.email ?? '-'}</TableCell>
+                    <TableCell className="text-muted-foreground">{l.phone ?? '-'}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); deleteLeader(l) }}>
                         <Trash className="h-3.5 w-3.5" />

@@ -150,10 +150,15 @@ export default function OrgUsersClient({ organizationName, currentUserId }: OrgU
 
     setIsUpdating(true)
     try {
+      const isNapaOrg = organizationName === 'National APIDA Panhellenic Association'
+      const payload: Record<string, unknown> = { isAdmin: editingMember.isAdmin }
+      if (isNapaOrg && editingMember.role && ['user','admin','napaBoard','napaDirector'].includes(editingMember.role)) {
+        payload.role = editingMember.role
+      }
       const response = await fetch(`/api/v2/members/${editingMember.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isAdmin: editingMember.isAdmin })
+        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
@@ -303,7 +308,7 @@ export default function OrgUsersClient({ organizationName, currentUserId }: OrgU
                             </DropdownMenuContent>
                           </DropdownMenu>
                         ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
+                          <span className="text-xs text-muted-foreground">-</span>
                         )}
                       </TableCell>
                     </TableRow>
@@ -410,18 +415,49 @@ export default function OrgUsersClient({ organizationName, currentUserId }: OrgU
                 <Input value={editingMember.email || ''} disabled className="bg-gray-50" />
               </div>
 
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="edit-admin"
-                  checked={editingMember.isAdmin}
-                  onCheckedChange={(checked) =>
-                    setEditingMember({ ...editingMember, isAdmin: checked as boolean })
-                  }
-                />
-                <Label htmlFor="edit-admin" className="text-sm cursor-pointer font-normal">
-                  Organization Admin
-                </Label>
-              </div>
+              {organizationName === 'National APIDA Panhellenic Association' ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-role">NAPA Role</Label>
+                  <Select
+                    value={editingMember.role && ['user','admin','napaBoard','napaDirector'].includes(editingMember.role) ? editingMember.role : (editingMember.isAdmin ? 'admin' : 'user')}
+                    onValueChange={(v) => {
+                      const role = v as 'user' | 'admin' | 'napaBoard' | 'napaDirector'
+                      setEditingMember({
+                        ...editingMember,
+                        role,
+                        isAdmin: role === 'admin' ? true : editingMember.isAdmin,
+                      })
+                    }}
+                  >
+                    <SelectTrigger id="edit-role">
+                      <span>
+                        {editingMember.role === 'napaBoard' ? 'NAPA Board' :
+                         editingMember.role === 'napaDirector' ? 'NAPA Director' :
+                         editingMember.isAdmin ? 'Admin' : 'User'}
+                      </span>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="user">User</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="napaDirector">NAPA Director</SelectItem>
+                      <SelectItem value="napaBoard">NAPA Board</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="edit-admin"
+                    checked={editingMember.isAdmin}
+                    onCheckedChange={(checked) =>
+                      setEditingMember({ ...editingMember, isAdmin: checked as boolean })
+                    }
+                  />
+                  <Label htmlFor="edit-admin" className="text-sm cursor-pointer font-normal">
+                    Organization Admin
+                  </Label>
+                </div>
+              )}
 
               <div className="flex justify-end gap-3 pt-4">
                 <Button

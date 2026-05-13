@@ -41,5 +41,6 @@ export interface Organization {
     email: string
     organizationName: string | null
     isAdmin: boolean
+    role?: string
     createdAt: string
   }

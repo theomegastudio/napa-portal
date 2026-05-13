@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
   })
   const duesMap = new Map(dues.map((d) => [d.organizationName, d]))
 
-  // Platform-wide annual dues target — applies to any org without its own record.
+  // Platform-wide annual dues target - applies to any org without its own record.
   const platformTarget = await db.query.platformDuesTargets.findFirst({
     where: eq(platformDuesTargets.year, year),
   })
@@ -100,33 +100,51 @@ export async function GET(request: NextRequest) {
     const duesPartial = paidCents > 0 && !duesPaid
 
     // Monthly: per-meeting credit by attendee_count. 2+ = 1.0, 1 = 0.5, 0 = 0.
+    // For scoring we ONLY consider meetings whose date is in the past - future
+    // meetings count in the X/12 display but don't drag the score down yet.
+    const now = new Date()
     let monthlyCreditSum = 0
+    let monthlyPastCount = 0
     let monthlyAttended = 0
     for (const m of monthlyMeetings) {
       const c = countsByMeeting.get(m.id)?.get(org.organizationName) ?? 0
-      if (c >= 2) { monthlyCreditSum += 1; monthlyAttended++ }
-      else if (c === 1) { monthlyCreditSum += 0.5; monthlyAttended++ }
+      if (c >= 2) monthlyAttended++
+      else if (c === 1) monthlyAttended++
+      if (m.meetingDate < now) {
+        monthlyPastCount++
+        if (c >= 2) monthlyCreditSum += 1
+        else if (c === 1) monthlyCreditSum += 0.5
+      }
     }
 
-    // NAPAAM attendees: sum count across all annual meetings this year for this org.
+    // NAPAAM attendees: sum count across annual meetings whose date is in the past.
     let napaamAttendees = 0
+    let napaamHasOccurred = false
     for (const m of annualMeetings) {
-      napaamAttendees += countsByMeeting.get(m.id)?.get(org.organizationName) ?? 0
+      if (m.meetingDate < now) {
+        napaamHasOccurred = true
+        napaamAttendees += countsByMeeting.get(m.id)?.get(org.organizationName) ?? 0
+      }
     }
 
     const c = complianceMap.get(org.organizationName)
     const renewalCompleted = !!c?.renewalCompletedAt
     const oneOnOneCompleted = !!c?.oneOnOneCompletedAt
 
-    // Engagement score (0-100): 5 equal-weighted dimensions, 20pts each.
-    const monthlyScore = monthlyMeetings.length > 0
-      ? Math.round((monthlyCreditSum / monthlyMeetings.length) * 20)
-      : 20 // no meetings yet = no penalty
-    // NAPAAM: 2+ attendees = full 20, 1 attendee = 10, 0 attendees = 0.
-    const napaamScore = napaamAttendees >= 2 ? 20 : napaamAttendees === 1 ? 10 : 0
-    const renewalScore = renewalCompleted ? 20 : 0
-    const duesScore = duesPaid ? 20 : duesPartial ? 10 : 0
-    const oneOnOneScore = oneOnOneCompleted ? 20 : 0
+    // Engagement score (0-100): 5 dimensions, each 0-20.
+    // Baseline is 16 per dimension when the data hasn't been collected/missed
+    // yet - so an org with zero activity recorded starts the year at 80, not 0.
+    // Active completions bring each dimension up to 20; explicit misses pull
+    // it down to 0.
+    const monthlyScore = monthlyPastCount > 0
+      ? Math.round((monthlyCreditSum / monthlyPastCount) * 20)
+      : 16
+    const napaamScore = napaamHasOccurred
+      ? (napaamAttendees >= 2 ? 20 : napaamAttendees === 1 ? 10 : 0)
+      : 16
+    const renewalScore = renewalCompleted ? 20 : 16
+    const duesScore = duesPaid ? 20 : duesPartial ? 10 : 16
+    const oneOnOneScore = oneOnOneCompleted ? 20 : 16
     const engagementScore = monthlyScore + napaamScore + renewalScore + duesScore + oneOnOneScore
 
     return {

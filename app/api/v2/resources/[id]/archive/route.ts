@@ -32,10 +32,9 @@ export async function POST(
     return NextResponse.json({ error: 'Resource not found' }, { status: 404 })
   }
 
-  const canArchive =
-    user.role === 'napaBoard' ||
-    user.role === 'napaDirector' ||
-    (user.organizationName === resource.organization && user.isAdmin)
+  // Only an admin from the resource's owning org can archive. NAPA staff and
+  // other-org admins are not permitted to archive another org's resources.
+  const canArchive = user.organizationName === resource.organization && !!user.isAdmin
 
   if (!canArchive) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

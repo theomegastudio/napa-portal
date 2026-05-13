@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/u
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { ChevronLeft, Trash } from 'lucide-react'
+import { orgSlug } from '@/lib/slug'
 
 type MeetingType = 'monthly' | 'annual' | 'general' | 'board' | 'committee' | 'special'
 
@@ -232,7 +233,7 @@ export default function MeetingDetailPage() {
               return (
                 <TableRow key={org.organizationName}>
                   <TableCell>
-                    <Link href={`/admin/organizations/${encodeURIComponent(org.organizationName)}`} className="hover:underline hover:text-primary">
+                    <Link href={`/admin/organizations/${orgSlug(org.organizationName)}`} className="hover:underline hover:text-primary">
                       {org.organizationName}
                     </Link>
                   </TableCell>

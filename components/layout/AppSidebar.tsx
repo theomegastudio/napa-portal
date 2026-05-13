@@ -78,7 +78,7 @@ function NavLink({ item, pathname, badge }: { item: NavItem; pathname: string; b
       <SidebarMenuItem>
         <SidebarMenuButton
           className="cursor-not-allowed opacity-50"
-          tooltip={`${item.title} — Coming soon`}
+          tooltip={`${item.title} - Coming soon`}
         >
           <item.icon className="h-4 w-4" />
           <span>{item.title}</span>

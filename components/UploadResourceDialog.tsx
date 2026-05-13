@@ -27,6 +27,7 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
   const [resourceType, setResourceType] = useState("")
   const [externalLink, setExternalLink] = useState("")
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [allowOtherOrgsDownload, setAllowOtherOrgsDownload] = useState(true)
   const [fileErrors, setFileErrors] = useState<string[]>([])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -109,6 +110,7 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
           resourceType,
           externalLink: externalLink || undefined,
           files: uploadedFiles.length > 0 ? uploadedFiles : undefined,
+          allowDownload: uploadedFiles.length > 0 ? allowOtherOrgsDownload : undefined,
         }),
       })
 
@@ -212,7 +214,17 @@ export default function UploadResourceDialog({ onSuccess, userEmail, userOrganiz
               Max {formatFileSize(MAX_FILE_SIZE)} per file. Allowed: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, images
             </p>
             {selectedFiles.length > 0 && (
-              <p className="text-xs text-green-600">✓ {selectedFiles.length} valid file(s) selected</p>
+              <>
+                <p className="text-xs text-green-600">✓ {selectedFiles.length} valid file(s) selected</p>
+                <label className="mt-2 flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={allowOtherOrgsDownload}
+                    onChange={(e) => setAllowOtherOrgsDownload(e.target.checked)}
+                  />
+                  Allow other organizations to download this file
+                </label>
+              </>
             )}
             {fileErrors.length > 0 && (
               <div className="text-xs text-destructive space-y-1">

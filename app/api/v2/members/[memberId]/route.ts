@@ -8,7 +8,7 @@ export async function PATCH(
   try {
     const { memberId } = await params;
     const body = await request.json();
-    const { isAdmin } = body;
+    const { isAdmin, role } = body;
 
     if (typeof isAdmin !== 'boolean') {
       return NextResponse.json(
@@ -17,7 +17,7 @@ export async function PATCH(
       );
     }
 
-    await updateMemberRole(memberId, isAdmin);
+    await updateMemberRole(memberId, isAdmin, role);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('PATCH member error:', error);

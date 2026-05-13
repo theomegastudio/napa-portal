@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title, description, resourceType, externalLink, files } = body;
+    const { title, description, resourceType, externalLink, files, allowDownload } = body;
 
     if (!title || !resourceType) {
       return NextResponse.json(
@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
       resourceType,
       externalLink,
       files,
+      allowDownload,
     });
 
     return NextResponse.json(resource);

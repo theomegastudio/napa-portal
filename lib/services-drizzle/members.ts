@@ -29,6 +29,7 @@ export async function getOrgMembers(
       email: true,
       organizationName: true,
       isAdmin: true,
+      role: true,
       createdAt: true,
     },
     orderBy: desc(users.createdAt),
@@ -158,7 +159,11 @@ export async function inviteUser(
 /**
  * Update a member's admin status
  */
-export async function updateMemberRole(memberId: string, isAdmin: boolean) {
+export async function updateMemberRole(
+  memberId: string,
+  isAdmin: boolean,
+  role?: 'user' | 'admin' | 'napaBoard' | 'napaDirector',
+) {
   const currentUser = await requireApprovedAuth();
 
   // Get the target member
@@ -194,13 +199,23 @@ export async function updateMemberRole(memberId: string, isAdmin: boolean) {
     }
   }
 
-  await db
-    .update(users)
-    .set({
-      isAdmin,
-      updatedAt: new Date(),
-    })
-    .where(eq(users.id, memberId));
+  // Role changes (napaBoard / napaDirector) are restricted to NAPA Board and
+  // only valid within the NAPA organization.
+  const NAPA_ORG_NAME = 'National APIDA Panhellenic Association';
+  const updates: Record<string, unknown> = { isAdmin, updatedAt: new Date() };
+  if (role && (role === 'napaBoard' || role === 'napaDirector')) {
+    if (member.organizationName !== NAPA_ORG_NAME) {
+      throw new Error('NAPA roles can only be granted within the NAPA organization');
+    }
+    if (currentUser.role !== 'napaBoard') {
+      throw new Error('Only NAPA Board can grant NAPA Board / NAPA Director roles');
+    }
+    updates.role = role;
+  } else if (role === 'user' || role === 'admin') {
+    updates.role = role;
+  }
+
+  await db.update(users).set(updates).where(eq(users.id, memberId));
 }
 
 /**
