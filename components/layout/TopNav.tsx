@@ -21,6 +21,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   users: 'Manage Users',
   organizations: 'Organizations',
   'org-health': 'Org Health',
+  meetings: 'Meetings',
   audit: 'Audit Log',
   resources: 'Resources',
 }

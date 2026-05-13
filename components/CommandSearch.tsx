@@ -50,6 +50,7 @@ const NAV_PAGES: NavPage[] = [
   { id: 'org-users', title: 'Org Users', subtitle: 'Manage your organization’s users', href: '/admin/org-users', icon: Users },
   { id: 'users', title: 'Manage Users', subtitle: 'All platform users', href: '/admin/users', icon: Shield },
   { id: 'org-health', title: 'Org Health', subtitle: 'Engagement metrics', href: '/admin/org-health', icon: Activity },
+  { id: 'meetings', title: 'Meetings', subtitle: 'Schedule meetings and track attendance', href: '/admin/meetings', icon: Activity },
   { id: 'audit', title: 'Audit Log', subtitle: 'Activity history', href: '/admin/audit', icon: ScrollText },
 ]
 

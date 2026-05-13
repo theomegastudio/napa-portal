@@ -237,6 +237,7 @@ export const meetingTypeEnum = pgEnum('meeting_type', [
   'committee',
   'special',
   'annual',
+  'monthly',
 ]);
 
 export const meetings = pgTable('meetings', {
@@ -262,6 +263,27 @@ export const meetingAttendance = pgTable('meeting_attendance', {
   notes: text('notes'),
   recordedBy: text('recorded_by').references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Per-org yearly compliance: combined membership renewal+certification, and the
+ * 1x1 with NAPA. Dues live in their own table. Attendance derives from the
+ * meetings table. One row per (organizationName, year).
+ */
+export const orgYearlyCompliance = pgTable('org_yearly_compliance', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationName: text('organization_name')
+    .notNull()
+    .references(() => organizations.organizationName, { onDelete: 'cascade' }),
+  year: integer('year').notNull(),
+  /** Combined renewal + certification completed. */
+  renewalCompletedAt: timestamp('renewal_completed_at', { withTimezone: true }),
+  /** 1x1 with NAPA participated. */
+  oneOnOneCompletedAt: timestamp('one_on_one_completed_at', { withTimezone: true }),
+  notes: text('notes'),
+  updatedBy: text('updated_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const orgHealthMetrics = pgTable('org_health_metrics', {
@@ -439,6 +461,13 @@ export const meetingAttendanceRelations = relations(meetingAttendance, ({ one })
 export const orgHealthMetricsRelations = relations(orgHealthMetrics, ({ one }) => ({
   organization: one(organizations, {
     fields: [orgHealthMetrics.organizationName],
+    references: [organizations.organizationName],
+  }),
+}));
+
+export const orgYearlyComplianceRelations = relations(orgYearlyCompliance, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [orgYearlyCompliance.organizationName],
     references: [organizations.organizationName],
   }),
 }));

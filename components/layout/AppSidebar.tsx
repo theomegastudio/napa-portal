@@ -6,7 +6,7 @@ import { signOut } from '@/lib/auth-client'
 import {
   Home, Archive, Users, UserCheck,
   ScrollText, Shield, Building2, Activity,
-  Settings, LogOut, ChevronsUpDown, Bell,
+  CalendarDays, Settings, LogOut, ChevronsUpDown, Bell,
 } from 'lucide-react'
 import NapaPortalLogo from '@/components/NapaPortalLogo'
 import CommandSearch from '@/components/CommandSearch'
@@ -67,6 +67,7 @@ const adminNav: NavItem[] = [
   { title: 'Users', href: '/admin/users', icon: Shield, napaAdminOnly: true },
   { title: 'Organizations', href: '/admin/organizations', icon: Building2, napaBoardOnly: true },
   { title: 'Org Health', href: '/admin/org-health', icon: Activity, orgHealthGated: true },
+  { title: 'Meetings', href: '/admin/meetings', icon: CalendarDays, orgHealthGated: true },
   { title: 'Audit Log', href: '/admin/audit', icon: ScrollText, adminOnly: true },
 ]
 
