@@ -123,7 +123,7 @@ export default function ResourceTable({
   }
 
   return (
-    <div className="rounded-md border">
+    <div className="rounded-lg border bg-card overflow-hidden">
       <Table>
         <TableHeader>
           <TableRow>

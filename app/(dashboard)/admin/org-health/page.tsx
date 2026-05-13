@@ -67,8 +67,12 @@ export default function OrgHealthPage() {
   const years = Array.from({ length: 5 }, (_, i) => String(currentYear - i))
 
   return (
-    <>
-      <div className="flex items-center justify-between mb-6">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Organization Overview</h2>
+          <p className="text-sm text-muted-foreground">Engagement metrics for {year}</p>
+        </div>
         <Select value={year} onValueChange={setYear}>
           <SelectTrigger className="w-32">
             <SelectValue />
@@ -88,7 +92,7 @@ export default function OrgHealthPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Avg Engagement Score</CardTitle>
@@ -123,62 +127,54 @@ export default function OrgHealthPage() {
             </Card>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Organization Overview</CardTitle>
-              <CardDescription>Engagement metrics for {year}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {orgs.length === 0 ? (
-                <div className="text-center py-12">
-                  <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No organizations found</p>
-                </div>
-              ) : (
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Organization</TableHead>
-                        <TableHead className="text-center">Members</TableHead>
-                        <TableHead className="text-center">Attendance</TableHead>
-                        <TableHead className="text-center">Dues Paid</TableHead>
-                        <TableHead className="text-center">Score</TableHead>
+          {orgs.length === 0 ? (
+            <div className="text-center py-16 border rounded-lg">
+              <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+              <h3 className="font-semibold mb-1">No organizations found</h3>
+            </div>
+          ) : (
+            <div className="rounded-lg border bg-card overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Organization</TableHead>
+                    <TableHead className="text-center">Members</TableHead>
+                    <TableHead className="text-center">Attendance</TableHead>
+                    <TableHead className="text-center">Dues Paid</TableHead>
+                    <TableHead className="text-center">Score</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {orgs
+                    .sort((a, b) => b.engagementScore - a.engagementScore)
+                    .map(org => (
+                      <TableRow key={org.organizationName}>
+                        <TableCell className="font-medium">{org.organizationName}</TableCell>
+                        <TableCell className="text-center">{org.memberCount}</TableCell>
+                        <TableCell className="text-center">
+                          {org.totalMeetings > 0
+                            ? `${org.meetingsAttended}/${org.totalMeetings} (${org.attendanceRate}%)`
+                            : '—'
+                          }
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {org.duesPaid
+                            ? <Check className="h-4 w-4 text-green-600 mx-auto" />
+                            : <X className="h-4 w-4 text-red-500 mx-auto" />
+                          }
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <ScoreBadge score={org.engagementScore} />
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {orgs
-                        .sort((a, b) => b.engagementScore - a.engagementScore)
-                        .map(org => (
-                          <TableRow key={org.organizationName}>
-                            <TableCell className="font-medium">{org.organizationName}</TableCell>
-                            <TableCell className="text-center">{org.memberCount}</TableCell>
-                            <TableCell className="text-center">
-                              {org.totalMeetings > 0
-                                ? `${org.meetingsAttended}/${org.totalMeetings} (${org.attendanceRate}%)`
-                                : '—'
-                              }
-                            </TableCell>
-                            <TableCell className="text-center">
-                              {org.duesPaid
-                                ? <Check className="h-4 w-4 text-green-600 mx-auto" />
-                                : <X className="h-4 w-4 text-red-500 mx-auto" />
-                              }
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <ScoreBadge score={org.engagementScore} />
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      }
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    ))
+                  }
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </>
       )}
-    </>
+    </div>
   )
 }

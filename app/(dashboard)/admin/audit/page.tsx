@@ -145,15 +145,19 @@ export default function AuditLogPage() {
   const totalPages = Math.ceil(total / ITEMS_PER_PAGE)
 
   return (
-    <>
-      <div className="flex justify-end mb-6">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Activity Log</h2>
+          <p className="text-sm text-muted-foreground">Showing {logs.length} of {total} total entries</p>
+        </div>
         <Button onClick={handleExport}>
           <Download className="mr-2 h-4 w-4" />Export CSV
         </Button>
       </div>
 
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Actions</CardTitle>
@@ -193,118 +197,105 @@ export default function AuditLogPage() {
         </div>
       )}
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Activity Log</CardTitle>
-                <CardDescription>Showing {logs.length} of {total} total entries</CardDescription>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <Select value={action} onValueChange={(val) => { setAction(val); setPage(0) }}>
-                <SelectTrigger><SelectValue placeholder="Action" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Actions</SelectItem>
-                  <SelectItem value="created">Created</SelectItem>
-                  <SelectItem value="updated">Updated</SelectItem>
-                  <SelectItem value="deleted">Deleted</SelectItem>
-                  <SelectItem value="downloaded">Downloaded</SelectItem>
-                  <SelectItem value="viewed">Viewed</SelectItem>
-                  <SelectItem value="signup">Signup</SelectItem>
-                  <SelectItem value="invited">Invited</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                  <SelectItem value="banned">Banned</SelectItem>
-                  <SelectItem value="unbanned">Unbanned</SelectItem>
-                </SelectContent>
-              </Select>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <Select value={action} onValueChange={(val) => { setAction(val); setPage(0) }}>
+          <SelectTrigger><SelectValue placeholder="Action" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Actions</SelectItem>
+            <SelectItem value="created">Created</SelectItem>
+            <SelectItem value="updated">Updated</SelectItem>
+            <SelectItem value="deleted">Deleted</SelectItem>
+            <SelectItem value="downloaded">Downloaded</SelectItem>
+            <SelectItem value="viewed">Viewed</SelectItem>
+            <SelectItem value="signup">Signup</SelectItem>
+            <SelectItem value="invited">Invited</SelectItem>
+            <SelectItem value="approved">Approved</SelectItem>
+            <SelectItem value="rejected">Rejected</SelectItem>
+            <SelectItem value="banned">Banned</SelectItem>
+            <SelectItem value="unbanned">Unbanned</SelectItem>
+          </SelectContent>
+        </Select>
 
-              {isNapaUser && (
-                <Select value={organization} onValueChange={(val) => { setOrganization(val); setPage(0) }}>
-                  <SelectTrigger><SelectValue placeholder="Organization" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Organizations</SelectItem>
-                    {Object.keys(orgCounts).map(org => (
-                      <SelectItem key={org} value={org}>{org}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+        {isNapaUser && (
+          <Select value={organization} onValueChange={(val) => { setOrganization(val); setPage(0) }}>
+            <SelectTrigger><SelectValue placeholder="Organization" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Organizations</SelectItem>
+              {Object.keys(orgCounts).map(org => (
+                <SelectItem key={org} value={org}>{org}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
-              <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(0) }} />
-              <Input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(0) }} />
-            </div>
+        <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(0) }} />
+        <Input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(0) }} />
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-2">
+          {[1,2,3,4,5].map(i => <Skeleton key={i} className="h-12" />)}
+        </div>
+      ) : logs.length === 0 ? (
+        <div className="text-center py-16 border rounded-lg">
+          <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+          <h3 className="font-semibold mb-1">No audit logs found</h3>
+          <p className="text-sm text-muted-foreground">Try adjusting your filters</p>
+        </div>
+      ) : (
+        <>
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Timestamp</TableHead>
+                  <TableHead>User</TableHead>
+                  {isNapaUser && <TableHead>Organization</TableHead>}
+                  <TableHead>Action</TableHead>
+                  <TableHead>Target</TableHead>
+                  <TableHead>Type</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {logs.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell className="font-mono text-sm">
+                      {new Date(log.createdAt).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-sm">{log.userEmail}</TableCell>
+                    {isNapaUser && <TableCell className="text-sm">{log.organization}</TableCell>}
+                    <TableCell>
+                      <Badge className={getActionColor(log.action)}>{log.action}</Badge>
+                    </TableCell>
+                    <TableCell className="text-sm">{log.resourceTitle || 'N/A'}</TableCell>
+                    <TableCell className="text-sm">
+                      {log.resourceType === 'user' ? (
+                        <Badge variant="outline" className="text-indigo-600 border-indigo-300">User</Badge>
+                      ) : (
+                        log.resourceType || 'N/A'
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-2">
-              {[1,2,3,4,5].map(i => <Skeleton key={i} className="h-12" />)}
-            </div>
-          ) : logs.length === 0 ? (
-            <div className="text-center py-12">
-              <FileText className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No audit logs found</h3>
-              <p className="text-muted-foreground">Try adjusting your filters</p>
-            </div>
-          ) : (
-            <>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Timestamp</TableHead>
-                      <TableHead>User</TableHead>
-                      {isNapaUser && <TableHead>Organization</TableHead>}
-                      <TableHead>Action</TableHead>
-                      <TableHead>Target</TableHead>
-                      <TableHead>Type</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {logs.map((log) => (
-                      <TableRow key={log.id}>
-                        <TableCell className="font-mono text-sm">
-                          {new Date(log.createdAt).toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-sm">{log.userEmail}</TableCell>
-                        {isNapaUser && <TableCell className="text-sm">{log.organization}</TableCell>}
-                        <TableCell>
-                          <Badge className={getActionColor(log.action)}>{log.action}</Badge>
-                        </TableCell>
-                        <TableCell className="text-sm">{log.resourceTitle || 'N/A'}</TableCell>
-                        <TableCell className="text-sm">
-                          {log.resourceType === 'user' ? (
-                            <Badge variant="outline" className="text-indigo-600 border-indigo-300">User</Badge>
-                          ) : (
-                            log.resourceType || 'N/A'
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
 
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4">
-                  <div className="text-sm text-muted-foreground">Page {page + 1} of {totalPages}</div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}>
-                      Previous
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page === totalPages - 1}>
-                      Next
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">Page {page + 1} of {totalPages}</div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}>
+                  Previous
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page === totalPages - 1}>
+                  Next
+                </Button>
+              </div>
+            </div>
           )}
-        </CardContent>
-      </Card>
-    </>
+        </>
+      )}
+    </div>
   )
 }
