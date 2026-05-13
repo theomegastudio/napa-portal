@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   FilePdf, FileDoc, FileXls, FilePpt, FileZip, FileImage,
@@ -11,12 +11,14 @@ import {
 } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { CardFrame, CardFrameFooter } from '@/components/ui/card'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
+import { TablePagination } from '@/components/ui/table-pagination'
 import { getFileIconName, getFileIconColor, type FileIconName } from '@/lib/file-icons'
 
 const ICON_MAP: Record<FileIconName, React.ElementType> = {
@@ -24,11 +26,11 @@ const ICON_MAP: Record<FileIconName, React.ElementType> = {
   FileImage, FileVideo, FileAudio, FileCsv, FileText, File,
 }
 
-function FileTypeIcon({ mimeType, filename, className }: { mimeType?: string | null; filename?: string | null; className?: string }) {
+function FileTypeIcon({ mimeType, filename }: { mimeType?: string | null; filename?: string | null }) {
   const iconName = getFileIconName(mimeType, filename)
   const Icon = ICON_MAP[iconName]
   const color = getFileIconColor(iconName)
-  return <Icon weight="duotone" className={`h-5 w-5 ${color} ${className ?? ''}`} />
+  return <Icon weight="duotone" className={`h-5 w-5 ${color}`} />
 }
 
 type SortField = 'title' | 'resourceType' | 'organization' | 'createdAt'
@@ -78,6 +80,8 @@ const TYPE_COLORS: Record<string, string> = {
   Vendor: 'bg-orange-100 text-orange-800 border-orange-200',
 }
 
+const PAGE_SIZE = 10
+
 function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField; sortDir: SortDir }) {
   if (field !== sortField) return <ArrowsDownUp className="h-3.5 w-3.5 ml-1 text-muted-foreground/50" />
   return sortDir === 'asc'
@@ -97,6 +101,7 @@ export default function ResourceTable({
 }: ResourceTableProps) {
   const [sortField, setSortField] = useState<SortField>('createdAt')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [page, setPage] = useState(0)
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -105,54 +110,63 @@ export default function ResourceTable({
       setSortField(field)
       setSortDir('asc')
     }
+    setPage(0)
   }
 
-  const sorted = [...resources].sort((a, b) => {
-    let cmp = 0
-    switch (sortField) {
-      case 'title': cmp = a.title.localeCompare(b.title); break
-      case 'resourceType': cmp = a.resourceType.localeCompare(b.resourceType); break
-      case 'organization': cmp = a.organization.localeCompare(b.organization); break
-      case 'createdAt': cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(); break
-    }
-    return sortDir === 'asc' ? cmp : -cmp
-  })
+  const sorted = useMemo(() => {
+    const arr = [...resources].sort((a, b) => {
+      let cmp = 0
+      switch (sortField) {
+        case 'title': cmp = a.title.localeCompare(b.title); break
+        case 'resourceType': cmp = a.resourceType.localeCompare(b.resourceType); break
+        case 'organization': cmp = a.organization.localeCompare(b.organization); break
+        case 'createdAt': cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(); break
+      }
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+    return arr
+  }, [resources, sortField, sortDir])
 
-  if (sorted.length === 0) {
-    return null
-  }
+  const paginated = useMemo(
+    () => sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE),
+    [sorted, page]
+  )
+
+  if (resources.length === 0) return null
 
   return (
-    <div className="rounded-lg border bg-card overflow-hidden">
-      <Table>
+    <CardFrame className="w-full">
+      <Table variant="card">
         <TableHeader>
           <TableRow>
-            <TableHead className="w-8" />
+            <TableHead className="w-10" />
             <TableHead>
-              <button className="flex items-center font-medium hover:text-foreground" onClick={() => toggleSort('title')}>
+              <button className="flex items-center hover:text-foreground" onClick={() => toggleSort('title')}>
                 Title <SortIcon field="title" sortField={sortField} sortDir={sortDir} />
               </button>
             </TableHead>
-            <TableHead>
-              <button className="flex items-center font-medium hover:text-foreground" onClick={() => toggleSort('resourceType')}>
+            <TableHead className="w-28">
+              <button className="flex items-center hover:text-foreground" onClick={() => toggleSort('resourceType')}>
                 Type <SortIcon field="resourceType" sortField={sortField} sortDir={sortDir} />
               </button>
             </TableHead>
             <TableHead>
-              <button className="flex items-center font-medium hover:text-foreground" onClick={() => toggleSort('organization')}>
+              <button className="flex items-center hover:text-foreground" onClick={() => toggleSort('organization')}>
                 Organization <SortIcon field="organization" sortField={sortField} sortDir={sortDir} />
               </button>
             </TableHead>
-            <TableHead>
-              <button className="flex items-center font-medium hover:text-foreground" onClick={() => toggleSort('createdAt')}>
+            <TableHead className="w-28">
+              <button className="flex items-center hover:text-foreground" onClick={() => toggleSort('createdAt')}>
                 Added <SortIcon field="createdAt" sortField={sortField} sortDir={sortDir} />
               </button>
             </TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            <TableHead className="w-12 text-right">
+              <span className="sr-only">Actions</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {sorted.map(resource => {
+          {paginated.map(resource => {
             const hasFile = resource.files.length > 0
             const hasLink = !!resource.externalLink
             const isArchived = resource.status === 'archived'
@@ -162,7 +176,7 @@ export default function ResourceTable({
                 <TableCell className="pr-0">
                   {hasFile ? (
                     <FileTypeIcon
-                      mimeType={resource.mimeType ?? resource.files[0] ? null : null}
+                      mimeType={resource.mimeType}
                       filename={resource.originalFilename ?? resource.files[0]?.fileName}
                     />
                   ) : hasLink ? (
@@ -193,18 +207,10 @@ export default function ResourceTable({
                         {resource.description}
                       </p>
                     )}
-                    {isArchived && (
-                      <Badge variant="outline" className="text-xs mt-1 text-muted-foreground">
-                        Archived
-                      </Badge>
-                    )}
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge
-                    variant="outline"
-                    className={`text-xs ${TYPE_COLORS[resource.resourceType] ?? ''}`}
-                  >
+                  <Badge variant="outline" className={`text-xs ${TYPE_COLORS[resource.resourceType] ?? ''}`}>
                     {resource.resourceType}
                   </Badge>
                 </TableCell>
@@ -251,19 +257,14 @@ export default function ResourceTable({
                           </DropdownMenuItem>
                         </>
                       )}
-
                       {canArchive(resource) && (
                         <DropdownMenuItem onClick={() => onArchive(resource.id)}>
                           <Archive className="h-4 w-4 mr-2" />
                           {isArchived ? 'Unarchive' : 'Archive'}
                         </DropdownMenuItem>
                       )}
-
                       {canDelete(resource) && (
-                        <DropdownMenuItem
-                          onClick={() => onDelete(resource.id)}
-                          variant="destructive"
-                        >
+                        <DropdownMenuItem onClick={() => onDelete(resource.id)} variant="destructive">
                           <Trash className="h-4 w-4 mr-2" />Delete
                         </DropdownMenuItem>
                       )}
@@ -275,6 +276,14 @@ export default function ResourceTable({
           })}
         </TableBody>
       </Table>
-    </div>
+      <CardFrameFooter className="p-0">
+        <TablePagination
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={sorted.length}
+          onPageChange={setPage}
+        />
+      </CardFrameFooter>
+    </CardFrame>
   )
 }

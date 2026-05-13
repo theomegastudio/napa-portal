@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
+import { CardFrame } from '@/components/ui/card'
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog'
@@ -224,8 +225,8 @@ export default function AdminOrganizationsPage() {
           <p className="text-sm text-muted-foreground">Click &ldquo;Add Organization&rdquo; to get started.</p>
         </div>
       ) : (
-        <div className="rounded-lg border bg-card overflow-hidden">
-          <Table>
+        <CardFrame className="w-full">
+          <Table variant="card">
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
@@ -269,7 +270,7 @@ export default function AdminOrganizationsPage() {
               ))}
             </TableBody>
           </Table>
-        </div>
+        </CardFrame>
       )}
 
       <Dialog open={!!editing} onOpenChange={(v) => !v && setEditing(null)}>

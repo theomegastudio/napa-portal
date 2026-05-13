@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { CardFrame } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { Loader2, SquarePen, Trash2, Search, MoreHorizontal, Users, UserPlus, Ban, ShieldCheck, Shield } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -306,8 +307,8 @@ export default function AdminUsersPage() {
             <p className="text-sm text-muted-foreground">Try adjusting your search or filters.</p>
           </div>
         ) : (
-          <div className="rounded-lg border bg-card overflow-hidden">
-            <Table>
+          <CardFrame className="w-full">
+            <Table variant="card">
                 <TableHeader>
                   <TableRow>
                     <TableHead>User</TableHead>
@@ -374,7 +375,7 @@ export default function AdminUsersPage() {
                   ))}
                 </TableBody>
               </Table>
-          </div>
+          </CardFrame>
         )}
       </div>
 

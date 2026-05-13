@@ -8,7 +8,6 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Loader2, SquarePen, Trash2, Search, UserPlus, Shield, MoreHorizontal, Users } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -17,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { CardFrame } from '@/components/ui/card'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,12 +26,12 @@ import {
 import { toast } from 'sonner'
 import type { Member } from '@/lib/types'
 
-interface OrganizationMembersClientProps {
+interface OrgUsersClientProps {
   organizationName: string
   currentUserId: string
 }
 
-export default function OrganizationMembersClient({ organizationName, currentUserId }: OrganizationMembersClientProps) {
+export default function OrgUsersClient({ organizationName, currentUserId }: OrgUsersClientProps) {
   const [members, setMembers] = useState<Member[]>([])
   const [filteredMembers, setFilteredMembers] = useState<Member[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -195,58 +195,48 @@ export default function OrganizationMembersClient({ organizationName, currentUse
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col md:flex-row md:items-center gap-4">
-            <div className="flex-1">
-              <CardTitle>Organization Members</CardTitle>
-              <CardDescription>
-                {filteredMembers.length} {filteredMembers.length === 1 ? 'member' : 'members'} in {organizationName}
-              </CardDescription>
-            </div>
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Search members by email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 w-full md:w-64"
-                />
-              </div>
-              <Button onClick={() => setInviteDialogOpen(true)}>
-                <UserPlus className="h-4 w-4 mr-2" />
-                Invite Member
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center items-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : filteredMembers.length === 0 ? (
-            <div className="text-center py-12">
-              <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-1">
-                {searchTerm ? 'No members found' : 'No members yet'}
-              </h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                {searchTerm ? 'Try adjusting your search.' : 'Invite members to your organization.'}
-              </p>
-              {!searchTerm && (
-                <Button onClick={() => setInviteDialogOpen(true)}>
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Invite First Member
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="rounded-md border">
-              <Table>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Org Users</h2>
+          <p className="text-sm text-muted-foreground">
+            {filteredMembers.length} {filteredMembers.length === 1 ? 'user' : 'users'} in {organizationName}
+          </p>
+        </div>
+        <Button onClick={() => setInviteDialogOpen(true)}>
+          <UserPlus className="h-4 w-4 mr-2" />
+          Invite User
+        </Button>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          type="text"
+          placeholder="Search by email..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center items-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : filteredMembers.length === 0 ? (
+        <div className="text-center py-16 border rounded-lg">
+          <Users className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+          <h3 className="font-semibold mb-1">
+            {searchTerm ? 'No users found' : 'No users yet'}
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            {searchTerm ? 'Try adjusting your search.' : 'Invite users to your organization.'}
+          </p>
+        </div>
+      ) : (
+        <CardFrame className="w-full">
+          <Table variant="card">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Email</TableHead>
@@ -310,10 +300,8 @@ export default function OrganizationMembersClient({ organizationName, currentUse
                   ))}
                 </TableBody>
               </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        </CardFrame>
+      )}
 
       {/* Invite Member Dialog */}
       <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>

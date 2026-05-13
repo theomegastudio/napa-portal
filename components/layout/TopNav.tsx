@@ -17,7 +17,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   profile: 'Profile Settings',
   admin: 'Admin',
   approvals: 'Pending Approvals',
-  members: 'Org Users',
+  'org-users': 'Org Users',
   users: 'Manage Users',
   organizations: 'Organizations',
   'org-health': 'Org Health',

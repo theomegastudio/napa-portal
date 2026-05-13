@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { CardFrame } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
@@ -149,8 +150,8 @@ export default function AdminApprovalsPage() {
             <p className="text-sm text-muted-foreground">All user registration requests have been processed.</p>
           </div>
         ) : (
-          <div className="rounded-lg border bg-card overflow-hidden">
-            <Table>
+          <CardFrame className="w-full">
+            <Table variant="card">
                 <TableHeader>
                   <TableRow>
                     <TableHead>User</TableHead>
@@ -197,7 +198,7 @@ export default function AdminApprovalsPage() {
                   ))}
                 </TableBody>
               </Table>
-          </div>
+          </CardFrame>
         )}
       </div>
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFrame } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -133,8 +133,8 @@ export default function OrgHealthPage() {
               <h3 className="font-semibold mb-1">No organizations found</h3>
             </div>
           ) : (
-            <div className="rounded-lg border bg-card overflow-hidden">
-              <Table>
+            <CardFrame className="w-full">
+              <Table variant="card">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Organization</TableHead>
@@ -171,7 +171,7 @@ export default function OrgHealthPage() {
                   }
                 </TableBody>
               </Table>
-            </div>
+            </CardFrame>
           )}
         </>
       )}

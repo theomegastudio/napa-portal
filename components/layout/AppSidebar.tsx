@@ -63,7 +63,7 @@ const mainNav: NavItem[] = [
 
 const adminNav: NavItem[] = [
   { title: 'Approvals', href: '/admin/approvals', icon: UserCheck, adminOnly: true },
-  { title: 'Org Users', href: '/admin/members', icon: Users, adminOnly: true },
+  { title: 'Org Users', href: '/admin/org-users', icon: Users, adminOnly: true },
   { title: 'Users', href: '/admin/users', icon: Shield, napaAdminOnly: true },
   { title: 'Organizations', href: '/admin/organizations', icon: Building2, napaBoardOnly: true },
   { title: 'Org Health', href: '/admin/org-health', icon: Activity, orgHealthGated: true },

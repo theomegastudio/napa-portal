@@ -47,7 +47,7 @@ const NAV_PAGES: NavPage[] = [
   { id: 'home', title: 'Resources', subtitle: 'Browse all resources', href: '/', icon: Home },
   { id: 'profile', title: 'Profile Settings', subtitle: 'Account and password', href: '/profile', icon: Settings },
   { id: 'approvals', title: 'Pending Approvals', subtitle: 'Review new users', href: '/admin/approvals', icon: UserCheck },
-  { id: 'members', title: 'Org Users', subtitle: 'Manage your organization’s users', href: '/admin/members', icon: Users },
+  { id: 'org-users', title: 'Org Users', subtitle: 'Manage your organization’s users', href: '/admin/org-users', icon: Users },
   { id: 'users', title: 'Manage Users', subtitle: 'All platform users', href: '/admin/users', icon: Shield },
   { id: 'org-health', title: 'Org Health', subtitle: 'Engagement metrics', href: '/admin/org-health', icon: Activity },
   { id: 'audit', title: 'Audit Log', subtitle: 'Activity history', href: '/admin/audit', icon: ScrollText },
