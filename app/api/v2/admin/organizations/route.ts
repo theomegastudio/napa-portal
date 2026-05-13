@@ -16,11 +16,11 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { organizationName, slug, logoUrl } = body ?? {};
+    const { organizationName, slug, logoUrl, memberCount, displayOrder } = body ?? {};
     if (!organizationName) {
       return NextResponse.json({ error: 'organizationName is required' }, { status: 400 });
     }
-    const org = await createOrganization({ organizationName, slug, logoUrl });
+    const org = await createOrganization({ organizationName, slug, logoUrl, memberCount, displayOrder });
     return NextResponse.json(org);
   } catch (error) {
     console.error('POST organization error:', error);

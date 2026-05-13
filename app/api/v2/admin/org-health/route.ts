@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { organizations, users, duesRecords, meetingAttendance, meetings, orgHealthMetrics } from '@/lib/db/schema'
-import { eq, and, count, desc } from 'drizzle-orm'
+import { organizations, duesRecords, meetingAttendance, meetings } from '@/lib/db/schema'
+import { and, asc, desc, eq, ne } from 'drizzle-orm'
+
+const NAPA_ORG_NAME = 'National APIDA Panhellenic Association'
 
 interface SessionUser {
   role?: string
@@ -27,25 +29,14 @@ export async function GET(request: NextRequest) {
 
   const year = parseInt(request.nextUrl.searchParams.get('year') ?? String(new Date().getFullYear()))
 
-  // Get all active organizations
+  // Active orgs excluding the NAPA parent body. Ordered by manual displayOrder then alpha as tiebreak.
   const orgs = await db.query.organizations.findMany({
-    where: eq(organizations.isActive, true),
-    orderBy: organizations.organizationName,
+    where: and(
+      eq(organizations.isActive, true),
+      ne(organizations.organizationName, NAPA_ORG_NAME),
+    ),
+    orderBy: [asc(organizations.displayOrder), asc(organizations.organizationName)],
   })
-
-  // Get member counts per org
-  const memberCounts = await db
-    .select({
-      organizationName: users.organizationName,
-      count: count(),
-    })
-    .from(users)
-    .where(eq(users.approvalStatus, 'approved'))
-    .groupBy(users.organizationName)
-
-  const memberCountMap = Object.fromEntries(
-    memberCounts.map(r => [r.organizationName, r.count])
-  )
 
   // Get dues for the year
   const dues = await db.query.duesRecords.findMany({
@@ -71,7 +62,7 @@ export async function GET(request: NextRequest) {
   }
 
   const result = orgs.map(org => {
-    const memberCount = memberCountMap[org.organizationName] ?? 0
+    const memberCount = org.memberCount ?? 0
     const duesRecord = duesMap[org.organizationName]
     const meetingsAttended = attendanceMap[org.organizationName] ?? 0
     const attendanceRate = totalMeetings > 0 ? Math.round((meetingsAttended / totalMeetings) * 100) : 0

@@ -88,7 +88,11 @@ export interface OrganizationWithCounts {
   logoUrl: string | null;
   isActive: boolean;
   createdAt: Date;
+  /** Manually tracked headcount stored on the org row. NOT derived from users. */
   memberCount: number;
+  /** Manual sort order for Org Health and other ordered lists. */
+  displayOrder: number;
+  /** Active resources owned by the org, derived. */
   resourceCount: number;
 }
 
@@ -99,13 +103,10 @@ export async function listOrganizationsWithCounts(): Promise<OrganizationWithCou
   const orgs = await db
     .select()
     .from(organizations)
-    .orderBy(sql`LOWER(${organizations.organizationName})`);
-
-  const memberRows = await db
-    .select({ org: users.organizationName, c: count() })
-    .from(users)
-    .groupBy(users.organizationName);
-  const memberMap = new Map(memberRows.map((r) => [r.org ?? '', r.c]));
+    .orderBy(
+      sql`${organizations.displayOrder} ASC`,
+      sql`LOWER(${organizations.organizationName})`,
+    );
 
   const resourceRows = await db
     .select({ org: resources.organization, c: count() })
@@ -121,7 +122,8 @@ export async function listOrganizationsWithCounts(): Promise<OrganizationWithCou
     logoUrl: o.logoUrl,
     isActive: o.isActive,
     createdAt: o.createdAt,
-    memberCount: memberMap.get(o.organizationName) ?? 0,
+    memberCount: o.memberCount ?? 0,
+    displayOrder: o.displayOrder ?? 0,
     resourceCount: resourceMap.get(o.organizationName) ?? 0,
   }));
 }
@@ -130,6 +132,8 @@ export async function createOrganization(input: {
   organizationName: string;
   slug?: string;
   logoUrl?: string;
+  memberCount?: number;
+  displayOrder?: number;
 }) {
   const user = await requireAuth();
   requireNapaAdmin(user);
@@ -148,6 +152,8 @@ export async function createOrganization(input: {
       organizationName: trimmed,
       slug: input.slug?.trim() || null,
       logoUrl: input.logoUrl?.trim() || null,
+      memberCount: input.memberCount ?? 0,
+      displayOrder: input.displayOrder ?? 0,
     })
     .returning();
   return row;
@@ -155,7 +161,14 @@ export async function createOrganization(input: {
 
 export async function updateOrganizationById(
   id: string,
-  patch: { organizationName?: string; slug?: string | null; logoUrl?: string | null; isActive?: boolean }
+  patch: {
+    organizationName?: string;
+    slug?: string | null;
+    logoUrl?: string | null;
+    isActive?: boolean;
+    memberCount?: number;
+    displayOrder?: number;
+  }
 ) {
   const user = await requireAuth();
   requireNapaAdmin(user);
@@ -172,6 +185,18 @@ export async function updateOrganizationById(
   if (patch.slug !== undefined) updates.slug = patch.slug ?? null;
   if (patch.logoUrl !== undefined) updates.logoUrl = patch.logoUrl ?? null;
   if (patch.isActive !== undefined) updates.isActive = patch.isActive;
+  if (patch.memberCount !== undefined) {
+    if (patch.memberCount < 0 || !Number.isFinite(patch.memberCount)) {
+      throw new Error('Member count must be a non-negative number');
+    }
+    updates.memberCount = Math.floor(patch.memberCount);
+  }
+  if (patch.displayOrder !== undefined) {
+    if (!Number.isFinite(patch.displayOrder)) {
+      throw new Error('Display order must be a number');
+    }
+    updates.displayOrder = Math.floor(patch.displayOrder);
+  }
 
   // If renaming, propagate to users.organizationName and resources.organization
   if (updates.organizationName && updates.organizationName !== target.organizationName) {

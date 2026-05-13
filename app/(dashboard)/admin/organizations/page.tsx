@@ -27,6 +27,7 @@ interface OrgRow {
   isActive: boolean
   createdAt: string
   memberCount: number
+  displayOrder: number
   resourceCount: number
 }
 
@@ -35,9 +36,18 @@ interface FormState {
   slug: string
   logoUrl: string
   isActive: boolean
+  memberCount: string
+  displayOrder: string
 }
 
-const emptyForm: FormState = { organizationName: '', slug: '', logoUrl: '', isActive: true }
+const emptyForm: FormState = {
+  organizationName: '',
+  slug: '',
+  logoUrl: '',
+  isActive: true,
+  memberCount: '0',
+  displayOrder: '0',
+}
 
 export default function AdminOrganizationsPage() {
   const [orgs, setOrgs] = useState<OrgRow[]>([])
@@ -76,6 +86,8 @@ export default function AdminOrganizationsPage() {
       slug: org.slug ?? '',
       logoUrl: org.logoUrl ?? '',
       isActive: org.isActive,
+      memberCount: String(org.memberCount ?? 0),
+      displayOrder: String(org.displayOrder ?? 0),
     })
     setEditing(org)
   }
@@ -91,6 +103,8 @@ export default function AdminOrganizationsPage() {
           organizationName: form.organizationName,
           slug: form.slug || undefined,
           logoUrl: form.logoUrl || undefined,
+          memberCount: Number(form.memberCount) || 0,
+          displayOrder: Number(form.displayOrder) || 0,
         }),
       })
       if (!res.ok) {
@@ -120,6 +134,8 @@ export default function AdminOrganizationsPage() {
           slug: form.slug || null,
           logoUrl: form.logoUrl || null,
           isActive: form.isActive,
+          memberCount: Number(form.memberCount) || 0,
+          displayOrder: Number(form.displayOrder) || 0,
         }),
       })
       if (!res.ok) {
@@ -202,6 +218,27 @@ export default function AdminOrganizationsPage() {
                     placeholder="https://..."
                   />
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="new-members">Members</Label>
+                    <Input
+                      id="new-members"
+                      type="number"
+                      min={0}
+                      value={form.memberCount}
+                      onChange={(e) => setForm({ ...form, memberCount: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="new-order">Display order</Label>
+                    <Input
+                      id="new-order"
+                      type="number"
+                      value={form.displayOrder}
+                      onChange={(e) => setForm({ ...form, displayOrder: e.target.value })}
+                    />
+                  </div>
+                </div>
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
@@ -229,6 +266,7 @@ export default function AdminOrganizationsPage() {
           <Table variant="card">
             <TableHeader>
               <TableRow>
+                <TableHead className="w-16 text-center">Order</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Slug</TableHead>
                 <TableHead className="text-right">Members</TableHead>
@@ -240,10 +278,11 @@ export default function AdminOrganizationsPage() {
             <TableBody>
               {orgs.map((org) => (
                 <TableRow key={org.id}>
+                  <TableCell className="text-center text-muted-foreground tabular-nums">{org.displayOrder}</TableCell>
                   <TableCell className="font-medium">{org.organizationName}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">{org.slug ?? '—'}</TableCell>
-                  <TableCell className="text-right">{org.memberCount}</TableCell>
-                  <TableCell className="text-right">{org.resourceCount}</TableCell>
+                  <TableCell className="text-right tabular-nums">{org.memberCount}</TableCell>
+                  <TableCell className="text-right tabular-nums">{org.resourceCount}</TableCell>
                   <TableCell>
                     {org.isActive ? (
                       <Badge variant="secondary">Active</Badge>
@@ -306,6 +345,33 @@ export default function AdminOrganizationsPage() {
                   value={form.logoUrl}
                   onChange={(e) => setForm({ ...form, logoUrl: e.target.value })}
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-members">Members</Label>
+                  <Input
+                    id="edit-members"
+                    type="number"
+                    min={0}
+                    value={form.memberCount}
+                    onChange={(e) => setForm({ ...form, memberCount: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Manual headcount. Not derived from platform users.
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-order">Display order</Label>
+                  <Input
+                    id="edit-order"
+                    type="number"
+                    value={form.displayOrder}
+                    onChange={(e) => setForm({ ...form, displayOrder: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Lower numbers appear first on Org Health.
+                  </p>
+                </div>
               </div>
               <label className="flex items-center gap-2 text-sm">
                 <input

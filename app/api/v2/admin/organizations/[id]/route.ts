@@ -8,8 +8,15 @@ export async function PATCH(
   try {
     const { id } = await context.params;
     const body = await request.json();
-    const { organizationName, slug, logoUrl, isActive } = body ?? {};
-    const row = await updateOrganizationById(id, { organizationName, slug, logoUrl, isActive });
+    const { organizationName, slug, logoUrl, isActive, memberCount, displayOrder } = body ?? {};
+    const row = await updateOrganizationById(id, {
+      organizationName,
+      slug,
+      logoUrl,
+      isActive,
+      memberCount,
+      displayOrder,
+    });
     return NextResponse.json(row);
   } catch (error) {
     console.error('PATCH organization error:', error);

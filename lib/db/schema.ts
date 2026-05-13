@@ -71,6 +71,10 @@ export const organizations = pgTable('organizations', {
   slug: text('slug').unique(),
   logoUrl: text('logo_url'),
   isActive: boolean('is_active').default(true).notNull(),
+  // Manually-tracked headcount for Org Health. Independent of users in the platform.
+  memberCount: integer('member_count').default(0).notNull(),
+  // Display order for Org Health and other places that need a stable manual sort.
+  displayOrder: integer('display_order').default(0).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
