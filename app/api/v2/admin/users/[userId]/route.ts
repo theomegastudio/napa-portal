@@ -13,7 +13,7 @@ export async function PATCH(
   try {
     const { userId } = await params;
     const body = await request.json();
-    const { email, organizationName, isAdmin, action, banReason } = body;
+    const { email, organizationName, isAdmin, role, canViewOrgHealth, action, banReason } = body;
 
     // Fetch target user for audit logging
     const targetUser = await db.query.users.findFirst({
@@ -66,6 +66,8 @@ export async function PATCH(
       email,
       organizationName,
       isAdmin,
+      role,
+      canViewOrgHealth,
     });
 
     // Audit log: user updated
@@ -78,7 +80,7 @@ export async function PATCH(
         action: 'updated',
         targetUserId: userId,
         targetUserEmail: targetUser?.email || email || 'unknown',
-        metadata: { changes: { email, organizationName, isAdmin } },
+        metadata: { changes: { email, organizationName, isAdmin, role, canViewOrgHealth } },
       });
     } catch {}
 

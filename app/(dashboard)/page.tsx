@@ -170,43 +170,41 @@ export default function ResourcesPage() {
       onDelete={() => fetchResources(searchText, resourceType, false)}
     />
     <div className="space-y-4">
-      <div className="bg-card rounded-lg border p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search resources..."
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <Select value={resourceType} onValueChange={setResourceType}>
-            <SelectTrigger className="w-full sm:w-44">
-              <SelectValue placeholder="Filter by type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              <SelectItem value="Policy">Policy</SelectItem>
-              <SelectItem value="Procedure">Procedure</SelectItem>
-              <SelectItem value="Document">Document</SelectItem>
-              <SelectItem value="Vendor">Vendor</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button
-            variant={showArchived ? "secondary" : "outline"}
-            onClick={() => setShowArchived(v => !v)}
-            className="gap-2"
-          >
-            <Archive className="h-4 w-4" />
-            {showArchived ? "Hide Archived" : "Show Archived"}
-          </Button>
-          <UploadResourceDialog
-            onSuccess={() => fetchResources(searchText, resourceType, false)}
-            userEmail={user.email || ''}
-            userOrganization={user.organizationName || ''}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search resources..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            className="pl-10"
           />
         </div>
+        <Select value={resourceType} onValueChange={setResourceType}>
+          <SelectTrigger className="w-full sm:w-44">
+            <SelectValue placeholder="Filter by type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="Policy">Policy</SelectItem>
+            <SelectItem value="Procedure">Procedure</SelectItem>
+            <SelectItem value="Document">Document</SelectItem>
+            <SelectItem value="Vendor">Vendor</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button
+          variant={showArchived ? 'secondary' : 'outline'}
+          onClick={() => setShowArchived(v => !v)}
+          className="gap-2"
+        >
+          <Archive className="h-4 w-4" />
+          {showArchived ? 'Hide Archived' : 'Show Archived'}
+        </Button>
+        <UploadResourceDialog
+          onSuccess={() => fetchResources(searchText, resourceType, false)}
+          userEmail={user.email || ''}
+          userOrganization={user.organizationName || ''}
+        />
       </div>
 
       {isResourcesLoading ? (

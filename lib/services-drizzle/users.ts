@@ -34,6 +34,10 @@ export async function getAllUsers() {
     organizationName: user.organizationName,
     isAdmin: user.isAdmin,
     isNapaAdmin: user.role === 'napaBoard' || user.role === 'napaDirector',
+    isNapaBoard: user.role === 'napaBoard',
+    isNapaDirector: user.role === 'napaDirector',
+    canViewOrgHealth: user.canViewOrgHealth,
+    role: user.role,
     approvalStatus: user.approvalStatus,
     banned: user.banned,
     banReason: user.banReason,
@@ -47,15 +51,31 @@ export async function updateUser(
     email?: string;
     organizationName?: string;
     isAdmin?: boolean;
+    role?: string;
+    canViewOrgHealth?: boolean;
   }
 ) {
-  await requireNapaAdmin();
+  const admin = await requireNapaAdmin();
 
   const updateData: Partial<typeof users.$inferInsert> = {};
 
   if (data.email !== undefined) updateData.email = data.email;
   if (data.organizationName !== undefined) updateData.organizationName = data.organizationName;
   if (data.isAdmin !== undefined) updateData.isAdmin = data.isAdmin;
+
+  // role + canViewOrgHealth are NAPA Board-only edits
+  const isRoleChange = data.role !== undefined || data.canViewOrgHealth !== undefined;
+  if (isRoleChange) {
+    if (admin.role !== 'napaBoard') {
+      throw new Error('Unauthorized: only NAPA Board can change roles');
+    }
+    if (data.role !== undefined) {
+      const allowed = ['user', 'admin', 'napaBoard', 'napaDirector'];
+      if (!allowed.includes(data.role)) throw new Error('Invalid role');
+      updateData.role = data.role;
+    }
+    if (data.canViewOrgHealth !== undefined) updateData.canViewOrgHealth = data.canViewOrgHealth;
+  }
 
   await db
     .update(users)

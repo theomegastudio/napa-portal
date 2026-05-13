@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -23,6 +22,10 @@ interface User {
   organizationName: string | null
   isAdmin: boolean
   isNapaAdmin: boolean
+  isNapaBoard: boolean
+  isNapaDirector: boolean
+  canViewOrgHealth: boolean
+  role: string
   approvalStatus: string
   banned: boolean | null
   banReason: string | null
@@ -38,6 +41,16 @@ interface Organization {
 interface ExtendedUser {
   id?: string
   role?: string
+}
+
+type RoleValue = 'user' | 'admin' | 'napaBoard' | 'napaDirector'
+
+interface EditFormState {
+  email: string
+  organizationName: string
+  isAdmin: boolean
+  role: RoleValue
+  canViewOrgHealth: boolean
 }
 
 export default function AdminUsersPage() {
@@ -60,8 +73,16 @@ export default function AdminUsersPage() {
 
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
-  const [editForm, setEditForm] = useState({ email: '', organizationName: '', isAdmin: false })
+  const [editForm, setEditForm] = useState<EditFormState>({
+    email: '',
+    organizationName: '',
+    isAdmin: false,
+    role: 'user',
+    canViewOrgHealth: false,
+  })
   const [isSaving, setIsSaving] = useState(false)
+
+  const currentIsNapaBoard = currentUser?.role === 'napaBoard'
 
   const [banDialogOpen, setBanDialogOpen] = useState(false)
   const [banningUser, setBanningUser] = useState<User | null>(null)
@@ -138,13 +159,35 @@ export default function AdminUsersPage() {
     if (!editingUser) return
     setIsSaving(true)
     try {
+      const payload: Record<string, unknown> = {
+        email: editForm.email,
+        organizationName: editForm.organizationName,
+        isAdmin: editForm.isAdmin,
+      }
+      // Only send role/canViewOrgHealth if the editor is NAPA Board (server rejects otherwise)
+      if (currentIsNapaBoard) {
+        payload.role = editForm.role
+        payload.canViewOrgHealth = editForm.canViewOrgHealth
+      }
       const response = await fetch(`/api/v2/admin/users/${editingUser.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: editForm.email, organizationName: editForm.organizationName, isAdmin: editForm.isAdmin }),
+        body: JSON.stringify(payload),
       })
       if (!response.ok) { const e = await response.json(); throw new Error(e.error || 'Failed to update user') }
-      setUsers(users.map(u => u.id === editingUser.id ? { ...u, ...editForm } : u))
+      setUsers(users.map(u => u.id === editingUser.id ? {
+        ...u,
+        email: editForm.email,
+        organizationName: editForm.organizationName,
+        isAdmin: editForm.isAdmin,
+        ...(currentIsNapaBoard ? {
+          role: editForm.role,
+          isNapaBoard: editForm.role === 'napaBoard',
+          isNapaDirector: editForm.role === 'napaDirector',
+          isNapaAdmin: editForm.role === 'napaBoard' || editForm.role === 'napaDirector',
+          canViewOrgHealth: editForm.canViewOrgHealth,
+        } : {}),
+      } : u))
       toast.success('User updated successfully')
       setEditDialogOpen(false)
     } catch (error) {
@@ -221,51 +264,50 @@ export default function AdminUsersPage() {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col md:flex-row md:items-center gap-4">
-            <div className="flex-1">
-              <CardTitle>All Users</CardTitle>
-              <CardDescription>Showing {filteredUsers.length} of {users.length} users</CardDescription>
-            </div>
-            <div className="flex flex-col md:flex-row gap-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search by email, name, or org..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 w-full md:w-64" />
-              </div>
-              <Select value={selectedOrg} onValueChange={setSelectedOrg}>
-                <SelectTrigger className="w-full md:w-48"><SelectValue placeholder="Filter by organization" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Organizations</SelectItem>
-                  {organizations.map((org) => <SelectItem key={org.id} value={org.organizationName}>{org.organizationName}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                <SelectTrigger className="w-full md:w-40"><SelectValue placeholder="Filter by status" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                  <SelectItem value="banned">Banned</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button onClick={() => setInviteDialogOpen(true)}>
-                <UserPlus className="h-4 w-4 mr-2" />Invite User
-              </Button>
-            </div>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">All Users</h2>
+            <p className="text-sm text-muted-foreground">Showing {filteredUsers.length} of {users.length} users</p>
           </div>
-        </CardHeader>
-        <CardContent>
-          {filteredUsers.length === 0 ? (
-            <div className="text-center py-12">
-              <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-1">No users found</h3>
-              <p className="text-sm text-muted-foreground">Try adjusting your search or filters.</p>
-            </div>
-          ) : (
-            <div className="rounded-md border">
-              <Table>
+          <Button onClick={() => setInviteDialogOpen(true)}>
+            <UserPlus className="h-4 w-4 mr-2" />Invite User
+          </Button>
+        </div>
+
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search by email, name, or org..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" />
+          </div>
+          <Select value={selectedOrg} onValueChange={setSelectedOrg}>
+            <SelectTrigger className="w-full md:w-48"><SelectValue placeholder="Filter by organization" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Organizations</SelectItem>
+              {organizations.map((org) => <SelectItem key={org.id} value={org.organizationName}>{org.organizationName}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+            <SelectTrigger className="w-full md:w-40"><SelectValue placeholder="Filter by status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+              <SelectItem value="banned">Banned</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {filteredUsers.length === 0 ? (
+          <div className="text-center py-16 border rounded-lg">
+            <Users className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+            <h3 className="font-semibold mb-1">No users found</h3>
+            <p className="text-sm text-muted-foreground">Try adjusting your search or filters.</p>
+          </div>
+        ) : (
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>User</TableHead>
@@ -287,8 +329,10 @@ export default function AdminUsersPage() {
                       </TableCell>
                       <TableCell className="text-muted-foreground">{user.organizationName || <span className="italic">Not set</span>}</TableCell>
                       <TableCell>
-                        {user.isNapaAdmin ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"><ShieldCheck className="h-3 w-3 mr-1" />NAPA Admin</span>
+                        {user.isNapaBoard ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"><ShieldCheck className="h-3 w-3 mr-1" />NAPA Board</span>
+                        ) : user.isNapaDirector ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800"><ShieldCheck className="h-3 w-3 mr-1" />NAPA Director</span>
                         ) : user.isAdmin ? (
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary"><Shield className="h-3 w-3 mr-1" />Admin</span>
                         ) : (
@@ -304,7 +348,7 @@ export default function AdminUsersPage() {
                               <MoreHorizontal className="h-4 w-4" />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => { setEditingUser(user); setEditForm({ email: user.email, organizationName: user.organizationName || '', isAdmin: user.isAdmin }); setEditDialogOpen(true) }}>
+                              <DropdownMenuItem onClick={() => { setEditingUser(user); setEditForm({ email: user.email, organizationName: user.organizationName || '', isAdmin: user.isAdmin, role: (user.role as RoleValue) || 'user', canViewOrgHealth: !!user.canViewOrgHealth }); setEditDialogOpen(true) }}>
                                 <SquarePen className="h-4 w-4" />Edit User
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
@@ -330,10 +374,9 @@ export default function AdminUsersPage() {
                   ))}
                 </TableBody>
               </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        )}
+      </div>
 
       {/* Invite Dialog */}
       <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
@@ -393,8 +436,44 @@ export default function AdminUsersPage() {
             </div>
             <div className="flex items-center space-x-2">
               <Checkbox id="edit-admin" checked={editForm.isAdmin} onCheckedChange={(c) => setEditForm({ ...editForm, isAdmin: c as boolean })} disabled={isSaving} />
-              <Label htmlFor="edit-admin" className="cursor-pointer">Admin privileges</Label>
+              <Label htmlFor="edit-admin" className="cursor-pointer">Org-level admin privileges</Label>
             </div>
+
+            {currentIsNapaBoard && (
+              <>
+                <div className="space-y-2 pt-2 border-t">
+                  <Label htmlFor="edit-role">NAPA Role</Label>
+                  <Select
+                    value={editForm.role}
+                    onValueChange={(v) => setEditForm({ ...editForm, role: v as RoleValue })}
+                    disabled={isSaving}
+                  >
+                    <SelectTrigger id="edit-role"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="user">User</SelectItem>
+                      <SelectItem value="admin">Admin (legacy)</SelectItem>
+                      <SelectItem value="napaDirector">NAPA Director</SelectItem>
+                      <SelectItem value="napaBoard">NAPA Board</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Board: full admin + can approve users, manage orgs, grant roles. Director: read+write across orgs, no approvals.
+                  </p>
+                </div>
+
+                {editForm.role === 'napaDirector' && (
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="edit-org-health"
+                      checked={editForm.canViewOrgHealth}
+                      onCheckedChange={(c) => setEditForm({ ...editForm, canViewOrgHealth: c as boolean })}
+                      disabled={isSaving}
+                    />
+                    <Label htmlFor="edit-org-health" className="cursor-pointer">Grant access to Org Health</Label>
+                  </div>
+                )}
+              </>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={isSaving}>Cancel</Button>

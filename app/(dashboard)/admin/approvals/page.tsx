@@ -8,7 +8,6 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { Loader2, Check, X, Search, UserPlus, Building2, MoreHorizontal } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -124,36 +123,34 @@ export default function AdminApprovalsPage() {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col md:flex-row md:items-center gap-4">
-            <div className="flex-1">
-              <CardTitle>Pending Requests</CardTitle>
-              <CardDescription>
-                {filteredUsers.length} {filteredUsers.length === 1 ? 'user' : 'users'} awaiting approval
-              </CardDescription>
-            </div>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by email, name, or organization..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 w-full md:w-72"
-              />
-            </div>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">Pending Requests</h2>
+            <p className="text-sm text-muted-foreground">
+              {filteredUsers.length} {filteredUsers.length === 1 ? 'user' : 'users'} awaiting approval
+            </p>
           </div>
-        </CardHeader>
-        <CardContent>
-          {filteredUsers.length === 0 ? (
-            <div className="text-center py-12">
-              <UserPlus className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-1">No pending approvals</h3>
-              <p className="text-sm text-muted-foreground">All user registration requests have been processed.</p>
-            </div>
-          ) : (
-            <div className="rounded-md border">
-              <Table>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by email, name, or organization..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 w-full md:w-72"
+            />
+          </div>
+        </div>
+
+        {filteredUsers.length === 0 ? (
+          <div className="text-center py-16 border rounded-lg">
+            <UserPlus className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+            <h3 className="font-semibold mb-1">No pending approvals</h3>
+            <p className="text-sm text-muted-foreground">All user registration requests have been processed.</p>
+          </div>
+        ) : (
+          <div className="rounded-lg border bg-card overflow-hidden">
+            <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>User</TableHead>
@@ -200,10 +197,9 @@ export default function AdminApprovalsPage() {
                   ))}
                 </TableBody>
               </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        )}
+      </div>
 
       <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
         <DialogContent>
