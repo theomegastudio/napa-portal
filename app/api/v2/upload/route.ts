@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
 import {
   validateFileServer,
   validateFileSizeServer,
 } from '@/lib/utils/server-file-validation';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { requireApprovedAuth } from '@/lib/auth-helpers';
 
 // Initialize R2 client
 const r2Client = new S3Client({
@@ -24,13 +23,12 @@ const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || '';
 
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication using BetterAuth
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    try {
+      await requireApprovedAuth();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Unauthorized';
+      const status = msg === 'Account not approved' ? 403 : 401;
+      return NextResponse.json({ error: msg }, { status });
     }
 
     // Parse form data
@@ -70,8 +68,11 @@ export async function POST(request: NextRequest) {
     const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '_');
     const uniqueFilename = `${timestamp}-${sanitizedFilename}`;
 
-    // Upload to R2
-    const fileUrl = await uploadToR2(buffer, uniqueFilename, file.type);
+    // Use the magic-byte-detected MIME type, not the client-supplied one.
+    // A mismatched stored Content-Type can be abused to coerce browsers into
+    // rendering uploaded bytes as a different document type when served.
+    const safeContentType = validation.detectedType || 'application/octet-stream';
+    const fileUrl = await uploadToR2(buffer, uniqueFilename, safeContentType);
 
     return NextResponse.json({
       success: true,

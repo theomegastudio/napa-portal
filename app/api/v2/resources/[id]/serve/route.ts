@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { headers } from 'next/headers'
-import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { resources, resourceFiles } from '@/lib/db/schema'
 import { eq, and, isNull } from 'drizzle-orm'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { createAuditLog } from '@/lib/services-drizzle/audit'
+import { requireApprovedAuth } from '@/lib/auth-helpers'
+import { canDownloadResource } from '@/lib/permissions'
 
 const r2Client = new S3Client({
   region: 'auto',
@@ -32,9 +32,13 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session?.user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  let user
+  try {
+    user = await requireApprovedAuth()
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Unauthorized'
+    const status = msg === 'Account not approved' ? 403 : 401
+    return NextResponse.json({ error: msg }, { status })
   }
 
   const { id } = await params
@@ -49,7 +53,13 @@ export async function GET(
     return NextResponse.json({ error: 'Resource not found' }, { status: 404 })
   }
 
-  // Determine which file to serve
+  // Enforce per-resource access: own org, NAPA staff, or the resource is
+  // shared (allowDownload=true). External links bypass file scope but still
+  // require the same visibility check.
+  if (!canDownloadResource(user, resource.organization, resource.allowDownload ?? false)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   let fileUrl: string | null = null
   if (fileId) {
     const file = resource.files.find(f => f.id === fileId)
@@ -66,8 +76,7 @@ export async function GET(
 
   const key = extractKeyFromUrl(fileUrl)
   if (!key) {
-    // Fall back to direct redirect if key extraction fails
-    return NextResponse.redirect(fileUrl)
+    return NextResponse.json({ error: 'Unable to resolve file location' }, { status: 500 })
   }
 
   try {
@@ -76,10 +85,9 @@ export async function GET(
       new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }),
       { expiresIn: 300 } // 5 minutes
     )
-    // Log the download (fire-and-forget; audit failures don't block the redirect)
     void createAuditLog({
-      userId: session.user.id,
-      userEmail: session.user.email,
+      userId: user.id,
+      userEmail: user.email,
       organization: resource.organization,
       action: 'downloaded',
       resourceId: resource.id,
@@ -88,8 +96,8 @@ export async function GET(
       metadata: fileId ? { fileId } : undefined,
     })
     return NextResponse.redirect(signedUrl)
-  } catch {
-    // Signed URL generation failed - fall back to public URL
-    return NextResponse.redirect(fileUrl)
+  } catch (e) {
+    console.error('Signed URL generation failed:', e)
+    return NextResponse.json({ error: 'Unable to generate download link' }, { status: 500 })
   }
 }

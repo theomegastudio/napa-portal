@@ -12,6 +12,16 @@ export async function GET(request: NextRequest) {
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const orgName = request.nextUrl.searchParams.get('organization')
   if (!orgName) return NextResponse.json({ error: 'organization required' }, { status: 400 })
+
+  // Leaders include emails and phone numbers - restrict reads to NAPA staff
+  // or members of the target org. Mirrors the POST check below.
+  const user = session.user as unknown as SessionUser
+  const isNapa = user.role === 'napaBoard' || user.role === 'napaDirector'
+  const isOwnOrg = user.organizationName === orgName
+  if (!isNapa && !isOwnOrg) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const rows = await db.query.orgLeaders.findMany({
     where: eq(orgLeaders.organizationName, orgName),
     orderBy: orgLeaders.createdAt,

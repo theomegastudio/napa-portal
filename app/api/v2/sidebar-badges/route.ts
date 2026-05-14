@@ -1,31 +1,40 @@
 import { NextResponse } from 'next/server'
-import { headers } from 'next/headers'
-import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { resources, users } from '@/lib/db/schema'
 import { and, eq, gt, isNull, sql } from 'drizzle-orm'
-
-interface SessionUser {
-  id: string
-  role?: string
-  isAdmin?: boolean
-}
+import { requireApprovedAuth } from '@/lib/auth-helpers'
 
 export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() })
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  let user
+  try {
+    user = await requireApprovedAuth()
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Unauthorized'
+    const status = msg === 'Account not approved' ? 403 : 401
+    return NextResponse.json({ error: msg }, { status })
+  }
 
-  const user = session.user as unknown as SessionUser
-  const isNapa = user.role === 'napaBoard' || user.role === 'napaDirector'
-  const isOrgAdmin = !!user.isAdmin
+  const isNapa = user.isNapaAdmin
+  const isOrgAdmin = user.isAdmin
 
-  // Pending approvals count (visible to org admins + NAPA staff)
+  // Pending approvals count - org admins see only their own org; NAPA staff see all.
+  // Without the org filter, an org-A admin would leak the global count of
+  // pending users across every org.
   let approvalsCount = 0
-  if (isNapa || isOrgAdmin) {
+  if (isNapa) {
     const [{ c }] = await db
       .select({ c: sql<number>`count(*)::int` })
       .from(users)
       .where(eq(users.approvalStatus, 'pending'))
+    approvalsCount = c
+  } else if (isOrgAdmin && user.organizationName) {
+    const [{ c }] = await db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(users)
+      .where(and(
+        eq(users.approvalStatus, 'pending'),
+        eq(users.organizationName, user.organizationName),
+      ))
     approvalsCount = c
   }
 

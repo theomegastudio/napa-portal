@@ -9,6 +9,7 @@ import {
 } from '@/lib/db/schema';
 import { eq, and, isNull, ilike, or, desc, sql } from 'drizzle-orm';
 import { requireApprovedAuth } from '@/lib/auth-helpers';
+import { canEditResource, canDeleteResource } from '@/lib/permissions';
 import { deleteFile } from './storage';
 
 export type { Resource, ResourceFile } from '@/lib/db/schema';
@@ -179,9 +180,11 @@ export async function updateResource(params: {
     throw new Error('Resource not found');
   }
 
-  // Check permission
-  if (!user.isNapaAdmin && !user.isAdmin) {
-    throw new Error('Unauthorized: Admin access required to edit resources');
+  // Must be NAPA staff, an admin in the resource's owning org, or the
+  // original uploader. A global isAdmin flag is NOT enough - an admin in
+  // org A may not edit org B's resources.
+  if (!canEditResource(user, existing.organization)) {
+    throw new Error('Unauthorized: Cannot edit resources from another organization');
   }
 
   return await db.transaction(async (tx) => {
@@ -299,9 +302,11 @@ export async function deleteResource(resourceId: string) {
     throw new Error('Resource not found');
   }
 
-  // Check permission
-  if (!user.isNapaAdmin && !user.isAdmin) {
-    throw new Error('Unauthorized: Admin access required to delete resources');
+  // Only an admin from the resource's owning org may delete it. NAPA staff
+  // are intentionally NOT allowed to delete another org's resources (matches
+  // lib/permissions.ts canDeleteResource).
+  if (!canDeleteResource(user, existing.organization)) {
+    throw new Error('Unauthorized: Cannot delete resources from another organization');
   }
 
   return await db.transaction(async (tx) => {

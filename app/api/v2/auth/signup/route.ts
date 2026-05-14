@@ -126,21 +126,20 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await hashPassword(password);
 
-    // Check for NAPA email domains for auto-admin
+    // NAPA email domains hint at the parent org so a Board member doesn't
+    // have to set the org manually, but they no longer grant admin or
+    // auto-approval. Anyone could otherwise sign up with an unverified
+    // @napahq.org address and instantly receive admin privileges.
     const napaDomains = ['@napahq.org', '@napa-online.org'];
     const isNapaEmail = napaDomains.some((domain) =>
       email.toLowerCase().endsWith(domain)
     );
 
-    // Determine organization and admin status
     const finalOrgName = isNapaEmail
       ? NAPA_ORG_NAME
       : organizationName || null;
-    const isAdmin = isNapaEmail;
-
-    // Determine approval status
-    // Only NAPA emails are auto-approved, all others require approval
-    const approvalStatus: 'pending' | 'approved' = isNapaEmail ? 'approved' : 'pending';
+    const isAdmin = false;
+    const approvalStatus: 'pending' | 'approved' = 'pending';
 
     // Role defaults to 'user' - napaBoard/napaDirector roles are granted manually by an existing NAPA Board member
     const role = 'user';
@@ -224,9 +223,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: approvalStatus === 'approved'
-        ? 'Account created successfully'
-        : 'Account created. Pending approval from your organization administrator.',
+      message: 'Account created. Pending approval from your organization administrator.',
       userId,
       approvalStatus,
     });
