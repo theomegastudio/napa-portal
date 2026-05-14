@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       await requireApprovedAuth();
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Unauthorized';
-      const status = msg === 'Account not approved' ? 403 : 401;
+      const status = msg === 'Unauthorized' ? 401 : 403;
       return NextResponse.json({ error: msg }, { status });
     }
 

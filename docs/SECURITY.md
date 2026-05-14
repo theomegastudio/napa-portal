@@ -225,3 +225,94 @@ For organizations requiring additional security:
 For security concerns or to report vulnerabilities:
 - Create issue: https://github.com/theomegastudio/napa-resource-hub/issues
 - Label with `security` tag
+
+---
+
+## Operator notes (added 2026-05-14 security review)
+
+### Cloudflare R2 bucket configuration
+
+The bucket named in `R2_BUCKET_NAME` **must be configured as private-read**:
+
+- No public bucket policy.
+- No public custom domain pointing directly at the bucket.
+- All reads go through `/api/v2/resources/[id]/serve`, which performs auth,
+  per-resource permission checks (`canDownloadResource`), and returns a
+  5-minute presigned URL.
+
+The serve route no longer falls back to the raw R2 URL on signed-URL
+failure - it returns 500 instead. If you're bringing up a new environment,
+verify the bucket policy *before* enabling uploads.
+
+```sh
+# Verify the bucket is not public
+npx wrangler r2 bucket get $R2_BUCKET_NAME
+
+# Rotate credentials: create new API token, update R2_ACCESS_KEY_ID and
+# R2_SECRET_ACCESS_KEY in the Vercel project, then revoke the old token.
+```
+
+### OTP re-verification (60 days)
+
+Enforced at three layers - keep them in sync:
+
+1. `proxy.ts` middleware (redirects dashboard navigation).
+2. `app/(dashboard)/layout.tsx` (server-render gate).
+3. `requireApprovedAuth()` in `lib/auth-helpers.ts` - throws so every
+   `/api/v2/*` data route returns 403 if the session is stale. (Added
+   2026-05-14; previously OTP freshness was client-only.)
+
+If you change `OTP_VALIDITY_DAYS` in `lib/auth.ts`, all three layers
+read from `isOTPVerificationRequired()` so no other code needs to change.
+
+### Rate limiting
+
+Authentication endpoints are rate-limited via BetterAuth (`lib/auth.ts`,
+`rateLimit` config). Tight per-minute caps on:
+
+- `/sign-in/email` (5/min)
+- `/email-otp/send-verification-otp` (3/min)
+- `/email-otp/verify-otp` (10/min)
+- `/forget-password` (3/min)
+
+The custom signup route at `/api/v2/auth/signup` is **not** covered by
+BetterAuth's limiter - if signup abuse becomes a problem, add a per-IP
+throttle there.
+
+### NAPA staff onboarding
+
+Email domain (`@napahq.org`, `@napa-online.org`) only sets the user's
+`organizationName` to the parent NAPA org at signup. It does **not** grant
+admin or auto-approval - that was previously the case and was changed in
+the 2026-05-14 security review to prevent fake-email auth bypass to admin.
+
+To promote a new NAPA Board / Director:
+
+1. The user signs up normally; they're pending.
+2. An existing Board member approves them in `/admin/approvals`.
+3. The Board member edits the user in `/admin/users` and sets `role` to
+   `napaBoard` or `napaDirector`. The PATCH endpoint enforces that only
+   existing Board members can grant Board/Director.
+
+### Cross-org data scoping
+
+By default, non-NAPA users see only their own org's resources, members,
+audit logs, and org-leader records. The relevant helpers:
+
+- `canViewResource(user, resourceOrg)` - enforced by `getResources` and
+  `getResourceById` in `lib/services-drizzle/resources.ts`.
+- `canEditResource` / `canDeleteResource` - enforced by `updateResource`
+  and `deleteResource`.
+- Audit log service - enforces `eq(auditLogs.organization,
+  user.organizationName)` for non-NAPA users.
+
+If you ever add a new list/detail endpoint that takes an
+`organization=` query param, double-check the caller can see that org
+before passing through.
+
+### Storage location note
+
+The legacy section above references Supabase Storage and `/api/upload`.
+The codebase moved to Cloudflare R2 and `/api/v2/upload`; the Supabase
+references are stale but the threat-model and validation principles
+still apply.

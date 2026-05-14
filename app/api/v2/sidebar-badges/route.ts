@@ -10,7 +10,7 @@ export async function GET() {
     user = await requireApprovedAuth()
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unauthorized'
-    const status = msg === 'Account not approved' ? 403 : 401
+    const status = msg === 'Unauthorized' ? 401 : 403
     return NextResponse.json({ error: msg }, { status })
   }
 
@@ -38,14 +38,22 @@ export async function GET() {
     approvalsCount = c
   }
 
-  // New resources since last view
+  // New resources since last view. Scoped to the user's own org for
+  // non-NAPA users so the badge doesn't reveal activity in other orgs.
   const me = await db.query.users.findFirst({ where: eq(users.id, user.id) })
   let newResourcesCount = 0
   if (me?.lastResourcesViewedAt) {
+    const newResourceConditions = [
+      isNull(resources.deletedAt),
+      gt(resources.createdAt, me.lastResourcesViewedAt),
+    ]
+    if (!isNapa && user.organizationName) {
+      newResourceConditions.push(eq(resources.organization, user.organizationName))
+    }
     const [{ c }] = await db
       .select({ c: sql<number>`count(*)::int` })
       .from(resources)
-      .where(and(isNull(resources.deletedAt), gt(resources.createdAt, me.lastResourcesViewedAt)))
+      .where(and(...newResourceConditions))
     newResourcesCount = c
   }
 

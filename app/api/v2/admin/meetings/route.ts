@@ -8,6 +8,9 @@ import { isNapaUser, type SessionUser } from '@/lib/permissions'
 
 type MeetingsSessionUser = SessionUser & { id: string }
 
+const MEETING_TYPES = ['monthly', 'annual', 'general', 'board', 'committee', 'special'] as const
+const MAX_TITLE = 200
+
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -37,15 +40,26 @@ export async function POST(request: NextRequest) {
   const body = await request.json()
   const { title, meetingType, meetingDate, notes, attendingOrgs } = body
 
-  if (!title || !meetingDate) {
-    return NextResponse.json({ error: 'Title and date are required' }, { status: 400 })
+  if (typeof title !== 'string' || !title.trim() || title.trim().length > MAX_TITLE) {
+    return NextResponse.json({ error: `title must be 1-${MAX_TITLE} characters` }, { status: 400 })
+  }
+  if (typeof meetingDate !== 'string') {
+    return NextResponse.json({ error: 'meetingDate is required' }, { status: 400 })
+  }
+  const parsedDate = new Date(meetingDate)
+  if (isNaN(parsedDate.getTime())) {
+    return NextResponse.json({ error: 'meetingDate is invalid' }, { status: 400 })
+  }
+  const resolvedType = meetingType ?? 'general'
+  if (!(MEETING_TYPES as readonly string[]).includes(resolvedType)) {
+    return NextResponse.json({ error: `meetingType must be one of: ${MEETING_TYPES.join(', ')}` }, { status: 400 })
   }
 
   const [meeting] = await db.insert(meetings).values({
-    title,
-    meetingType: meetingType ?? 'general',
-    meetingDate: new Date(meetingDate),
-    notes,
+    title: title.trim(),
+    meetingType: resolvedType,
+    meetingDate: parsedDate,
+    notes: typeof notes === 'string' ? notes : null,
     createdBy: user.id,
   }).returning()
 

@@ -9,8 +9,10 @@ import bcrypt from 'bcryptjs';
 const OTP_VALIDITY_DAYS = 60;
 
 /**
- * Returns true if the email belongs to a NAPA staff domain (@napahq.org or @napa-online.org).
- * Used during sign-up to automatically assign the napaAdmin role.
+ * Returns true if the email belongs to a NAPA staff domain (@napahq.org or
+ * @napa-online.org). Used at signup only to default the user's organizationName
+ * to the parent NAPA org - it does NOT grant admin privileges. Role and
+ * approval status are granted manually by a NAPA Board member.
  */
 export const isNapaEmail = (email: string): boolean => {
   const napaDomains = ['@napahq.org', '@napa-online.org'];
@@ -101,6 +103,21 @@ export const auth = betterAuth({
     },
   },
 
+  // Rate limiting. Without this, the 6-digit OTP could be brute-forced
+  // inside the 10-minute window. BetterAuth applies the defaults to all
+  // endpoints and the `customRules` map to specific paths.
+  rateLimit: {
+    enabled: true,
+    window: 60, // seconds
+    max: 60, // default: 60 requests per minute per IP
+    customRules: {
+      '/sign-in/email': { window: 60, max: 5 },
+      '/email-otp/send-verification-otp': { window: 60, max: 3 },
+      '/email-otp/verify-otp': { window: 60, max: 10 },
+      '/forget-password': { window: 60, max: 3 },
+    },
+  },
+
   // Cookie security
   advanced: {
     cookiePrefix: 'better-auth',
@@ -187,8 +204,8 @@ export const auth = betterAuth({
         }
       },
     }),
-    // Note: We handle admin checks via our custom isAdmin field and role field
-    // isNapaAdmin is determined by role === 'napaAdmin', not org membership
+    // Admin checks live in lib/permissions.ts: isAdmin is a per-user boolean
+    // for org-level admin; role === 'napaBoard' | 'napaDirector' for NAPA staff.
   ],
 });
 

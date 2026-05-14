@@ -10,6 +10,10 @@ interface SessionUser {
   role?: string
 }
 
+const MEETING_TYPES = ['monthly', 'annual', 'general', 'board', 'committee', 'special'] as const
+const MAX_TITLE = 200
+const MAX_NOTES = 5000
+
 async function requireNapa() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) throw new Error('Unauthorized')
@@ -31,10 +35,30 @@ export async function PATCH(
     const { title, meetingType, meetingDate, notes, attendance } = body ?? {}
 
     const updates: Record<string, unknown> = { updatedAt: new Date() }
-    if (typeof title === 'string') updates.title = title.trim()
-    if (typeof meetingType === 'string') updates.meetingType = meetingType
-    if (typeof meetingDate === 'string') updates.meetingDate = new Date(meetingDate)
-    if (notes !== undefined) updates.notes = notes ?? null
+    if (typeof title === 'string') {
+      const trimmed = title.trim()
+      if (trimmed.length === 0 || trimmed.length > MAX_TITLE) {
+        throw new Error(`title must be 1-${MAX_TITLE} characters`)
+      }
+      updates.title = trimmed
+    }
+    if (typeof meetingType === 'string') {
+      if (!(MEETING_TYPES as readonly string[]).includes(meetingType)) {
+        throw new Error(`meetingType must be one of: ${MEETING_TYPES.join(', ')}`)
+      }
+      updates.meetingType = meetingType
+    }
+    if (typeof meetingDate === 'string') {
+      const d = new Date(meetingDate)
+      if (isNaN(d.getTime())) throw new Error('meetingDate is invalid')
+      updates.meetingDate = d
+    }
+    if (notes !== undefined) {
+      if (notes !== null && (typeof notes !== 'string' || notes.length > MAX_NOTES)) {
+        throw new Error(`notes must be a string under ${MAX_NOTES} characters`)
+      }
+      updates.notes = notes ?? null
+    }
 
     if (Object.keys(updates).length > 1) {
       await db.update(meetings).set(updates).where(eq(meetings.id, id))

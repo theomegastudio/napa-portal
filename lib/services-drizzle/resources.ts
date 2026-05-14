@@ -9,7 +9,7 @@ import {
 } from '@/lib/db/schema';
 import { eq, and, isNull, ilike, or, desc, sql } from 'drizzle-orm';
 import { requireApprovedAuth } from '@/lib/auth-helpers';
-import { canEditResource, canDeleteResource } from '@/lib/permissions';
+import { canEditResource, canDeleteResource, canViewResource } from '@/lib/permissions';
 import { deleteFile } from './storage';
 
 export type { Resource, ResourceFile } from '@/lib/db/schema';
@@ -30,16 +30,18 @@ export async function getResources(params?: {
   const user = await requireApprovedAuth();
 
   // Build where conditions
-  // All approved users can see all resources (no organization filter)
   const conditions = [isNull(resources.deletedAt)];
+
+  // Org scoping: NAPA staff see every org's resources; everyone else only
+  // sees their own org's. This matches canViewResource(). Applied to both
+  // active and archived lists.
+  if (!user.isNapaAdmin && user.organizationName) {
+    conditions.push(eq(resources.organization, user.organizationName));
+  }
 
   // Status filter
   if (params?.status === 'archived') {
     conditions.push(eq(resources.status, 'archived' as any));
-    // Archived resources are scoped to the user's own org (NAPA staff see all)
-    if (!user.isNapaAdmin && user.organizationName) {
-      conditions.push(eq(resources.organization, user.organizationName));
-    }
   } else if (params?.status === 'active') {
     conditions.push(eq(resources.status, 'active' as any));
   }
@@ -88,7 +90,13 @@ export async function getResourceById(
 
   if (!resource) return null;
 
-  // All approved users can access all resources
+  // Hide cross-org resources from non-NAPA users. Returning null (not
+  // throwing) mimics "not found" so an attacker can't enumerate the
+  // existence of other orgs' resource IDs.
+  if (!canViewResource(user, resource.organization)) {
+    return null;
+  }
+
   return resource;
 }
 

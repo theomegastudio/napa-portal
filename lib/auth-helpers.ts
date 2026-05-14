@@ -81,14 +81,25 @@ export async function requireAuth(): Promise<AuthUser> {
 }
 
 /**
- * Get the current user and ensure they are approved.
- * Use this for all resource/data API routes to prevent pending/rejected users from accessing data.
+ * Get the current user and ensure they are approved AND that their OTP
+ * re-verification (every 60 days) is still fresh.
+ *
+ * The OTP-freshness check matches the UI-side gate in `proxy.ts` and the
+ * dashboard layout - without it, a session older than 60 days could still
+ * call any data API directly even though the UI redirects them to /verify-email.
+ *
+ * Distinct error messages let callers map to 401/403/428 status codes if
+ * they want a finer-grained response.
  */
 export async function requireApprovedAuth(): Promise<AuthUser> {
   const user = await requireAuth();
 
   if (user.approvalStatus !== 'approved') {
     throw new Error('Account not approved');
+  }
+
+  if (user.emailVerificationRequired) {
+    throw new Error('OTP verification required');
   }
 
   return user;
