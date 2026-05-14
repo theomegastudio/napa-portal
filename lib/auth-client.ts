@@ -35,18 +35,6 @@ export interface SessionUser {
   updatedAt?: Date;
 }
 
-// Helper to check if user is NAPA admin (based on role field, not org membership)
-export function isNapaAdmin(user: SessionUser | null): boolean {
-  if (!user) return false;
-  return user.role === 'napaAdmin';
-}
-
-// Helper to check if user is any admin
-export function isAdmin(user: SessionUser | null): boolean {
-  if (!user) return false;
-  return user.role === 'admin' || user.role === 'napaAdmin' || user.isAdmin === true;
-}
-
 // Helper to check if OTP verification is required (60-day validity)
 export function isOTPVerificationRequired(user: SessionUser | null): boolean {
   if (!user) return true;

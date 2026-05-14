@@ -12,6 +12,7 @@ import {
 import NapaPortalLogo from '@/components/NapaPortalLogo'
 import CommandSearch from '@/components/CommandSearch'
 import { orgSlug } from '@/lib/slug'
+import { NAPA_ORG_NAME } from '@/lib/constants'
 import UserAvatar from '@/components/UserAvatar'
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup,
@@ -38,11 +39,9 @@ interface SidebarUser {
   organizationName?: string | null
 }
 
-const NAPA_FULL_ORG_NAME = 'National APIDA Panhellenic Association'
-
 function abbreviateOrg(name?: string | null): string {
   if (!name) return 'NAPA Portal'
-  if (name === NAPA_FULL_ORG_NAME) return 'NAPA'
+  if (name === NAPA_ORG_NAME) return 'NAPA'
   return name
 }
 
@@ -239,7 +238,7 @@ export function AppSidebar({ user }: { user: SidebarUser }) {
               {mainNav.map(item => (
                 <NavLink key={item.href} item={item} pathname={pathname} badge={badgeFor(item.href)} />
               ))}
-              {user.organizationName && user.organizationName !== NAPA_FULL_ORG_NAME && (
+              {user.organizationName && user.organizationName !== NAPA_ORG_NAME && (
                 <NavLink
                   item={{
                     title: 'Our Organization',

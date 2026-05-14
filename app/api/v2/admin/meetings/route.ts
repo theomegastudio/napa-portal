@@ -4,20 +4,16 @@ import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { meetings, meetingAttendance, organizations } from '@/lib/db/schema'
 import { desc, eq } from 'drizzle-orm'
+import { isNapaUser, type SessionUser } from '@/lib/permissions'
 
-interface SessionUser {
-  id: string
-  role?: string
-  isAdmin?: boolean
-}
+type MeetingsSessionUser = SessionUser & { id: string }
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const user = session.user as unknown as SessionUser
-  const isNapa = user.role === 'napaBoard' || user.role === 'napaDirector'
-  if (!isNapa && !user.isAdmin) {
+  const user = session.user as unknown as MeetingsSessionUser
+  if (!isNapaUser(user) && !user.isAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -33,8 +29,8 @@ export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const user = session.user as unknown as SessionUser
-  if (user.role !== 'napaBoard' && user.role !== 'napaDirector') {
+  const user = session.user as unknown as MeetingsSessionUser
+  if (!isNapaUser(user)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

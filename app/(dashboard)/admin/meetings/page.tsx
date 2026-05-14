@@ -20,6 +20,7 @@ import {
 import { toast } from 'sonner'
 import { AlertTriangle, CalendarPlus, FileDown, FileUp } from 'lucide-react'
 import { formatDateOnly } from '@/lib/format'
+import { NAPA_ORG_NAME } from '@/lib/constants'
 
 type MeetingType = 'monthly' | 'annual' | 'general' | 'board' | 'committee' | 'special'
 
@@ -32,7 +33,6 @@ interface Meeting {
   attendance: { id: string; organizationName: string; attended: boolean }[]
 }
 
-const NAPA_ORG_NAME = 'National APIDA Panhellenic Association'
 const MIN_ATTENDEES = 2
 
 const TYPE_LABEL: Record<MeetingType, string> = {

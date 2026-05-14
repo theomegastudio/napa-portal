@@ -68,7 +68,10 @@ const NAV_PAGES: NavPageWithGate[] = [
 
 function ResultIcon({ result }: { result: SearchResult }) {
   const iconName = getFileIconName(result.mimeType, result.originalFilename)
-  const Icon = result.hasFile ? FILE_ICON_MAP[iconName] : result.externalLink ? Globe : FileText
+  let Icon: React.ElementType
+  if (result.hasFile) Icon = FILE_ICON_MAP[iconName]
+  else if (result.externalLink) Icon = Globe
+  else Icon = FileText
   const color = result.hasFile ? getFileIconColor(iconName) : 'text-muted-foreground'
   return (
     <div className="flex h-8 w-8 items-center justify-center rounded-md border bg-background shrink-0">

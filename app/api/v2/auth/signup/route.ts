@@ -6,6 +6,7 @@ import { hashPassword } from '@/lib/auth';
 import { notifyApprovers, isFirstUserInOrg, getNapaAdmins, getOrgAdminsForOrg } from '@/lib/services-drizzle/approvals';
 import { sendApprovalRequestEmail } from '@/lib/services-drizzle/email';
 import { createAuditLog } from '@/lib/services-drizzle/audit';
+import { NAPA_ORG_NAME } from '@/lib/constants';
 
 // Generate a random ID compatible with BetterAuth
 function generateId(): string {
@@ -133,7 +134,7 @@ export async function POST(request: NextRequest) {
 
     // Determine organization and admin status
     const finalOrgName = isNapaEmail
-      ? 'National APIDA Panhellenic Association'
+      ? NAPA_ORG_NAME
       : organizationName || null;
     const isAdmin = isNapaEmail;
 

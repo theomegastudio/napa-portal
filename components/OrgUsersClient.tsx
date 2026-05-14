@@ -26,13 +26,31 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { toast } from 'sonner'
 import type { Member } from '@/lib/types'
+import { NAPA_ORG_NAME } from '@/lib/constants'
 
 interface OrgUsersClientProps {
   organizationName: string
   currentUserId: string
 }
 
+type NapaRole = 'user' | 'admin' | 'napaBoard' | 'napaDirector'
+const NAPA_ROLES: readonly NapaRole[] = ['user', 'admin', 'napaBoard', 'napaDirector']
+
+const ROLE_LABELS: Record<NapaRole, string> = {
+  user: 'User',
+  admin: 'Admin',
+  napaBoard: 'NAPA Board',
+  napaDirector: 'NAPA Director',
+}
+
+/** Pick the dropdown value that should be selected for a given member. */
+function roleSelectValue(role: string | null | undefined, isAdmin: boolean): NapaRole {
+  if (role && (NAPA_ROLES as readonly string[]).includes(role)) return role as NapaRole
+  return isAdmin ? 'admin' : 'user'
+}
+
 export default function OrgUsersClient({ organizationName, currentUserId }: OrgUsersClientProps) {
+  const isNapaOrg = organizationName === NAPA_ORG_NAME
   const [members, setMembers] = useState<Member[]>([])
   const [filteredMembers, setFilteredMembers] = useState<Member[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -109,7 +127,6 @@ export default function OrgUsersClient({ organizationName, currentUserId }: OrgU
 
     setIsInviting(true)
     try {
-      const isNapaOrg = organizationName === 'National APIDA Panhellenic Association'
       const payload: Record<string, unknown> = {
         email: inviteEmail,
         organizationName,
@@ -150,9 +167,8 @@ export default function OrgUsersClient({ organizationName, currentUserId }: OrgU
 
     setIsUpdating(true)
     try {
-      const isNapaOrg = organizationName === 'National APIDA Panhellenic Association'
       const payload: Record<string, unknown> = { isAdmin: editingMember.isAdmin }
-      if (isNapaOrg && editingMember.role && ['user','admin','napaBoard','napaDirector'].includes(editingMember.role)) {
+      if (isNapaOrg && editingMember.role && (NAPA_ROLES as readonly string[]).includes(editingMember.role)) {
         payload.role = editingMember.role
       }
       const response = await fetch(`/api/v2/members/${editingMember.id}`, {
@@ -349,16 +365,12 @@ export default function OrgUsersClient({ organizationName, currentUserId }: OrgU
               />
             </div>
 
-            {organizationName === 'National APIDA Panhellenic Association' ? (
+            {isNapaOrg ? (
               <div className="space-y-1.5">
                 <Label htmlFor="invite-role" className="text-sm font-medium">NAPA Role</Label>
-                <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as 'user' | 'admin' | 'napaBoard' | 'napaDirector')}>
+                <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as NapaRole)}>
                   <SelectTrigger id="invite-role" className="border-gray-300">
-                    <span>
-                      {inviteRole === 'napaBoard' ? 'NAPA Board' :
-                       inviteRole === 'napaDirector' ? 'NAPA Director' :
-                       inviteRole === 'admin' ? 'Admin' : 'User'}
-                    </span>
+                    <span>{ROLE_LABELS[inviteRole]}</span>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="user">User</SelectItem>
@@ -415,13 +427,13 @@ export default function OrgUsersClient({ organizationName, currentUserId }: OrgU
                 <Input value={editingMember.email || ''} disabled className="bg-gray-50" />
               </div>
 
-              {organizationName === 'National APIDA Panhellenic Association' ? (
+              {isNapaOrg ? (
                 <div className="space-y-1.5">
                   <Label htmlFor="edit-role">NAPA Role</Label>
                   <Select
-                    value={editingMember.role && ['user','admin','napaBoard','napaDirector'].includes(editingMember.role) ? editingMember.role : (editingMember.isAdmin ? 'admin' : 'user')}
+                    value={roleSelectValue(editingMember.role, editingMember.isAdmin)}
                     onValueChange={(v) => {
-                      const role = v as 'user' | 'admin' | 'napaBoard' | 'napaDirector'
+                      const role = v as NapaRole
                       setEditingMember({
                         ...editingMember,
                         role,
@@ -430,11 +442,7 @@ export default function OrgUsersClient({ organizationName, currentUserId }: OrgU
                     }}
                   >
                     <SelectTrigger id="edit-role">
-                      <span>
-                        {editingMember.role === 'napaBoard' ? 'NAPA Board' :
-                         editingMember.role === 'napaDirector' ? 'NAPA Director' :
-                         editingMember.isAdmin ? 'Admin' : 'User'}
-                      </span>
+                      <span>{ROLE_LABELS[roleSelectValue(editingMember.role, editingMember.isAdmin)]}</span>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="user">User</SelectItem>

@@ -16,6 +16,7 @@ import { toast } from 'sonner'
 import { ChevronLeft, Trash } from 'lucide-react'
 import { orgSlug } from '@/lib/slug'
 import { formatDateOnly } from '@/lib/format'
+import { NAPA_ORG_NAME } from '@/lib/constants'
 
 type MeetingType = 'monthly' | 'annual' | 'general' | 'board' | 'committee' | 'special'
 
@@ -31,8 +32,6 @@ interface MeetingDetail {
 interface Org {
   organizationName: string
 }
-
-const NAPA_ORG_NAME = 'National APIDA Panhellenic Association'
 
 const TYPE_LABEL: Record<MeetingType, string> = {
   monthly: 'Monthly',

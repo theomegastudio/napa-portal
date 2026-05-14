@@ -3,6 +3,7 @@ import { users, type User } from '@/lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { requireApprovedAuth } from '@/lib/auth-helpers';
 import { sendInvitationEmail } from '@/lib/services-drizzle/email';
+import { NAPA_ORG_NAME } from '@/lib/constants';
 
 export type Member = Pick<
   User,
@@ -55,7 +56,6 @@ export async function inviteUser(
   }
 
   // Only napaBoard can grant napaBoard / napaDirector roles
-  const NAPA_ORG_NAME = 'National APIDA Panhellenic Association';
   let assignedRole: string = 'user';
   if (role && (role === 'napaBoard' || role === 'napaDirector')) {
     if (organizationName !== NAPA_ORG_NAME) {
@@ -201,7 +201,6 @@ export async function updateMemberRole(
 
   // Role changes (napaBoard / napaDirector) are restricted to NAPA Board and
   // only valid within the NAPA organization.
-  const NAPA_ORG_NAME = 'National APIDA Panhellenic Association';
   const updates: Record<string, unknown> = { isAdmin, updatedAt: new Date() };
   if (role && (role === 'napaBoard' || role === 'napaDirector')) {
     if (member.organizationName !== NAPA_ORG_NAME) {

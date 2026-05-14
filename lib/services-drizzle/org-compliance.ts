@@ -2,8 +2,7 @@ import { db } from '@/lib/db';
 import { orgYearlyCompliance, organizations } from '@/lib/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { requireAuth } from '@/lib/auth-helpers';
-
-const NAPA_ORG_NAME = 'National APIDA Panhellenic Association';
+import { NAPA_ORG_NAME } from '@/lib/constants';
 
 function requireNapaWrite(user: { role: string; canViewOrgHealth: boolean }) {
   // Board can always write. Directors only when they have OrgHealth access.

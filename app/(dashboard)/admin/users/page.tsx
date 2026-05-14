@@ -15,6 +15,7 @@ import { TablePagination } from '@/components/ui/table-pagination'
 import { toast } from 'sonner'
 import { Loader2, SquarePen, Trash2, Search, MoreHorizontal, Users, UserPlus, Ban, ShieldCheck, Shield } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { NAPA_ORG_NAME } from '@/lib/constants'
 
 interface User {
   id: string
@@ -67,7 +68,6 @@ export default function AdminUsersPage() {
   const [sortField, setSortField] = useState<'email' | 'organizationName' | 'role' | 'approvalStatus' | 'createdAt'>('createdAt')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const PAGE_SIZE = 10
-  const NAPA_ORG_NAME = 'National APIDA Panhellenic Association'
 
   const toggleSort = (field: typeof sortField) => {
     if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
