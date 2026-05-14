@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { ChevronLeft, Plus, Trash } from 'lucide-react'
+import { formatDateOnly } from '@/lib/format'
 
 interface Leader {
   id: string
@@ -319,7 +320,7 @@ export default function OrgDetailPage() {
                         : m.title}
                     </TableCell>
                     <TableCell><Badge variant="outline">{TYPE_LABEL[m.meetingType] ?? m.meetingType}</Badge></TableCell>
-                    <TableCell className="text-muted-foreground tabular-nums">{new Date(m.meetingDate).toLocaleDateString()}</TableCell>
+                    <TableCell className="text-muted-foreground tabular-nums">{formatDateOnly(m.meetingDate)}</TableCell>
                     <TableCell className="text-right tabular-nums">{m.attendeeCount}</TableCell>
                   </TableRow>
                 ))}

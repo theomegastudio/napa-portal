@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { toast } from 'sonner'
 import { ChevronLeft, Trash } from 'lucide-react'
 import { orgSlug } from '@/lib/slug'
+import { formatDateOnly } from '@/lib/format'
 
 type MeetingType = 'monthly' | 'annual' | 'general' | 'board' | 'committee' | 'special'
 
@@ -207,7 +208,7 @@ export default function MeetingDetailPage() {
               <Badge variant="outline">{TYPE_LABEL[meeting.meetingType]}</Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              {new Date(meeting.meetingDate).toLocaleDateString()} · {attendeeCount} attended
+              {formatDateOnly(meeting.meetingDate)} · {attendeeCount} attended
             </p>
             {meeting.notes && <p className="text-sm">{meeting.notes}</p>}
           </div>

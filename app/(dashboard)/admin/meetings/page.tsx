@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { AlertTriangle, CalendarPlus, FileDown, FileUp } from 'lucide-react'
+import { formatDateOnly } from '@/lib/format'
 
 type MeetingType = 'monthly' | 'annual' | 'general' | 'board' | 'committee' | 'special'
 
@@ -226,7 +227,7 @@ export default function MeetingsPage() {
                       <Badge variant="outline">{TYPE_LABEL[m.meetingType]}</Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground tabular-nums">
-                      {new Date(m.meetingDate).toLocaleDateString()}
+                      {formatDateOnly(m.meetingDate)}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="inline-flex items-center gap-2">

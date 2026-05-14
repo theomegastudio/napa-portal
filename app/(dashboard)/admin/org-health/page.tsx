@@ -17,6 +17,7 @@ import {
 import { toast } from 'sonner'
 import { AlertTriangle, Building2, DollarSign, Plus, Trash } from 'lucide-react'
 import { orgSlug } from '@/lib/slug'
+import { formatDateOnly } from '@/lib/format'
 
 interface DuesPayment {
   id: string
@@ -419,7 +420,7 @@ function DuesDialog({
               ) : org.duesPayments.map(p => (
                 <div key={p.id} className="flex items-center justify-between px-3 py-2 text-sm">
                   <span className="tabular-nums">${p.amount.toFixed(2)}</span>
-                  <span className="text-muted-foreground">{new Date(p.paidAt).toLocaleDateString()}</span>
+                  <span className="text-muted-foreground">{formatDateOnly(p.paidAt)}</span>
                   <Button variant="ghost" size="sm" onClick={() => deletePayment(p.id)} disabled={saving}>
                     <Trash className="h-3.5 w-3.5" />
                   </Button>
