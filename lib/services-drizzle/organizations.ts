@@ -81,6 +81,11 @@ export async function getOrganizationStats() {
   }));
 }
 
+/**
+ * Shape returned by `listOrganizationsWithCounts`. `memberCount` is the manual
+ * headcount stored on the row (NOT derived from platform users). `resourceCount`
+ * is derived (non-archived, non-deleted resources owned by the org).
+ */
 export interface OrganizationWithCounts {
   id: string;
   organizationName: string;
@@ -97,6 +102,12 @@ export interface OrganizationWithCounts {
   resourceCount: number;
 }
 
+/**
+ * NAPA-Board-only list of every org with manual member counts and derived
+ * active-resource counts. Sorted alphabetically (case-insensitive).
+ *
+ * @throws Error('Unauthorized: NAPA admin access required') if the caller is not NAPA staff.
+ */
 export async function listOrganizationsWithCounts(): Promise<OrganizationWithCounts[]> {
   const user = await requireAuth();
   requireNapaAdmin(user);
@@ -127,6 +138,11 @@ export async function listOrganizationsWithCounts(): Promise<OrganizationWithCou
   }));
 }
 
+/**
+ * Create a new member organization. NAPA Board only.
+ *
+ * @throws Error('An organization with that name already exists') on duplicate names.
+ */
 export async function createOrganization(input: {
   organizationName: string;
   slug?: string;
@@ -158,6 +174,17 @@ export async function createOrganization(input: {
   return row;
 }
 
+/**
+ * Update an organization. NAPA Board only.
+ *
+ * Side effects:
+ * - Renaming propagates to `users.organizationName` and `resources.organization`
+ *   in a single transaction so foreign-key targets stay consistent.
+ * - Flipping `isActive` to `false` stamps `inactivatedAt = now()`. Flipping back
+ *   to `true` clears it. The UI reads `inactivatedAt` to show the archive date.
+ *
+ * @throws Error('Organization not found') if id doesn't match a row.
+ */
 export async function updateOrganizationById(
   id: string,
   patch: {
@@ -221,6 +248,13 @@ export async function updateOrganizationById(
   return row;
 }
 
+/**
+ * Permanently delete an organization. NAPA Board only. Blocked if the org
+ * still has any users or active resources - the UI hints at this in the
+ * delete confirmation, and the server enforces it.
+ *
+ * @throws Error if the org has members or resources still attached.
+ */
 export async function deleteOrganizationById(id: string) {
   const user = await requireAuth();
   requireNapaAdmin(user);

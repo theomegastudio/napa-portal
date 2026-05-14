@@ -1,13 +1,13 @@
 # Contributing to NAPA Resource Hub
 
-This guide is for developers who are already comfortable with TypeScript and Next.js but are new to this codebase. It covers conventions, patterns, and non-obvious gotchas that will save you debugging time.
+This guide is for developers comfortable with TypeScript and Next.js but new to this codebase. It covers conventions, patterns, and non-obvious gotchas that will save you debugging time.
 
 ## Stack
 
 | Layer | Technology |
 |---|---|
 | Framework | Next.js 16 App Router |
-| UI | React 19, Tailwind v4, shadcn/ui |
+| UI | React 19, Tailwind v4, shadcn/ui in `base-vega` style on **Base UI** primitives |
 | Auth | Better Auth |
 | ORM | Drizzle ORM |
 | Database | Neon PostgreSQL |
@@ -17,27 +17,58 @@ This guide is for developers who are already comfortable with TypeScript and Nex
 
 ---
 
-## Adding a New Feature — End-to-End Walkthrough
+## Adding a New Feature - End-to-End Walkthrough
 
 Follow these steps in order when building a new feature that needs a database table, API route, and UI:
 
 ### 1. Schema
 
-Add your table definition to `lib/db/schema.ts` using Drizzle's schema builder.
+Add your table definition to `lib/db/schema.ts` using Drizzle's schema builder. Add a relation block if the new table references existing ones.
 
 ### 2. Migration
 
-Add a migration SQL block to `scripts/migrate.mjs`. **Never use `drizzle-kit push`** — it requires interactive confirmation and breaks in non-interactive environments. See [Database Migrations](#database-migrations) for the full rules.
-
 ```bash
-node scripts/migrate.mjs
+npm run db:generate
 ```
 
-### 3. API Route
+That writes `drizzle/####_*.sql`. Apply it manually using a node one-liner (drizzle-kit's own `migrate` doesn't pick up `DATABASE_URL` automatically):
+
+```bash
+set -a; source .env.local; set +a
+node -e "
+const { Client } = require('pg');
+const crypto = require('crypto');
+const fs = require('fs');
+(async () => {
+  const c = new Client({ connectionString: process.env.DATABASE_URL });
+  await c.connect();
+  // Run the ALTER/CREATE statements from drizzle/####_*.sql here.
+  // Always use IF NOT EXISTS / IF NOT EXISTS guards so it's idempotent.
+  await c.query('ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...');
+  // Record the migration so drizzle-kit doesn't reapply it.
+  const hash = crypto.createHash('sha256')
+    .update(fs.readFileSync('drizzle/####_*.sql', 'utf8'))
+    .digest('hex');
+  await c.query('INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES (\$1, \$2)', [hash, Date.now()]);
+  console.log('applied');
+  await c.end();
+})().catch(e => { console.error(e.message); process.exit(1); });
+"
+```
+
+The old `scripts/migrate.mjs` runner is gone — don't reach for it.
+
+### 3. Service
+
+Add a service file at `lib/services-drizzle/<entity>.ts`. Every function should call `requireApprovedAuth()` or `requireAuth()` at the top, then enforce the relevant permission via `lib/permissions.ts`. Existing examples:
+
+- `lib/services-drizzle/organizations.ts` (CRUD + listOrganizationsWithCounts)
+- `lib/services-drizzle/org-compliance.ts` (yearly flag toggles)
+- `lib/services-drizzle/members.ts` (invite + role updates with NAPA gating)
+
+### 4. API Route
 
 Create the route at `app/api/v2/[feature]/route.ts`. All API routes live under `app/api/v2/` — always use the `v2` prefix.
-
-Every protected route must start with this auth check:
 
 ```ts
 import { auth } from '@/lib/auth'
@@ -45,31 +76,42 @@ import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 import type { ExtendedUser } from '@/lib/types'
 
-const session = await auth.api.getSession({ headers: await headers() })
-if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-const user = session.user as ExtendedUser
+export async function GET() {
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const user = session.user as ExtendedUser
+  // ...
+}
 ```
 
-### 4. Component
+### 5. Component
 
-Create a client component in `components/`. See [Component Patterns](#component-patterns) for conventions on dialogs, tables, icons, and toasts.
+Client component in `components/`. See [Component Patterns](#component-patterns).
 
-### 5. Page
+### 6. Page
 
-Wire the component into a page at `app/(dashboard)/[page]/page.tsx`.
+`app/(dashboard)/[page]/page.tsx`. Follow the unified page layout (page header on top, filters inline, table card below — no outer Card wrapper).
 
-### 6. Sidebar + Nav
+### 7. Sidebar + Nav
 
-Add a nav item to `components/layout/AppSidebar.tsx` and register the route title in `components/layout/TopNav.tsx`. See [Sidebar Navigation](#sidebar-navigation).
+Add a nav item to `components/layout/AppSidebar.tsx`'s `mainNav` or `adminNav` array, and register the page title in `components/layout/TopNav.tsx`'s `SEGMENT_LABELS` map. Use the gate flags:
+
+- `adminOnly: true` — org admin or NAPA staff
+- `napaAdminOnly: true` — NAPA Board or Director
+- `napaBoardOnly: true` — Board only
+- `orgHealthGated: true` — Board always; Director only when `canViewOrgHealth = true`
+
+The same gating mirror in `components/CommandSearch.tsx`'s `NAV_PAGES` — please update both so role-restricted pages don't show up for users who can't access them.
 
 ---
 
 ## API Routes
 
 - All routes live under `app/api/v2/` — do not create routes outside this prefix
-- Always authenticate at the top of every handler (pattern above)
+- Always authenticate at the top of every handler
 - Return `NextResponse.json({ error: '...' }, { status: 4xx })` for error responses
 - Cast `session.user` to `ExtendedUser` — the default Better Auth user type is missing project-specific fields
+- For role-sensitive writes, prefer `user.role === 'napaBoard'` over a generic `isAdmin` check. NAPA Director and org admins are intentionally limited
 
 ---
 
@@ -77,31 +119,14 @@ Add a nav item to `components/layout/AppSidebar.tsx` and register the route titl
 
 **Never run `drizzle-kit push`.** It prompts for interactive confirmation and fails in scripts/CI.
 
-Instead:
+Instead, follow the flow in [Adding a New Feature - Migration](#2-migration). The lifecycle is:
 
-1. Add your SQL to `scripts/migrate.mjs`
-2. Run `node scripts/migrate.mjs`
+1. Edit `lib/db/schema.ts`
+2. `npm run db:generate` (writes `drizzle/####_*.sql`)
+3. Apply the SQL via the node `pg` one-liner above, with `IF NOT EXISTS` guards
+4. Insert the migration hash into `drizzle.__drizzle_migrations` so drizzle-kit knows it's been applied
 
-The migration script uses the `pg` Client directly — **not** `@neondatabase/serverless`'s `neon()` function, which requires tagged template literals and doesn't work with plain string queries.
-
-All statements must be idempotent:
-
-```sql
--- Tables
-CREATE TABLE IF NOT EXISTS my_table (...);
-
--- Columns
-DO $$ BEGIN
-  ALTER TABLE my_table ADD COLUMN new_col text;
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
--- Enums
-DO $$ BEGIN
-  CREATE TYPE my_enum AS ENUM ('a', 'b');
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-```
+All statements must be idempotent.
 
 ---
 
@@ -111,89 +136,94 @@ END $$;
 
 Use `Dialog` from `components/ui/dialog` for all forms and detail views. It renders centered with a zoom animation.
 
+Base UI's Dialog API differs from Radix:
+- `disablePointerDismissal` (not `onInteractOutside`)
+- Use `onOpenChange={(_, e) => e.reason === 'escape-key' && e.cancel()}` to block escape
+- `DialogTrigger` accepts a `render` prop (not `asChild`)
+
 Do not use `Sheet` for forms — Sheet is reserved for non-form side panels only.
+
+### `asChild` → `render`
+
+Base UI replaces Radix's `asChild` with `render`:
+
+```tsx
+// Radix
+<Button asChild>
+  <Link href="/foo">Click</Link>
+</Button>
+
+// Base UI
+<Button render={<Link href="/foo" />}>Click</Button>
+```
+
+The shadcn `Button` wrapper auto-sets `nativeButton={false}` when `render` is provided so warnings don't fire.
 
 ### Tables
 
-Follow the `ResourceTable` pattern:
+Every list page wraps `<Table>` in `<div className="rounded-lg border bg-card overflow-hidden">`. Optionally add `<TablePagination>` from `components/ui/table-pagination.tsx` to get a Prev/Next footer with clear disabled state.
 
-- Sortable column headers
-- `DotsThree` (Phosphor) dropdown for row actions
-- Optional `onRowClick` prop to open a detail `Dialog`
+Sort state is plain `useState` (we don't use TanStack). Filter state resets `page` to 0 on change.
+
+Date-only fields (meeting date, dues payment date) render through `formatDateOnly()` from `lib/format.ts` — a thin wrapper around `toLocaleDateString({ timeZone: 'UTC' })` — to avoid the off-by-one bug in negative-offset timezones.
 
 ### Icons
 
-**File-type icons** — always use `@phosphor-icons/react` with `weight="duotone"` via the icon resolution helpers:
+**File-type icons** — always `@phosphor-icons/react` with `weight="duotone"`:
 
 ```tsx
 import { FILE_ICON_MAP, getFileIconColor, getFileIconName } from '@/lib/file-icons'
 
 const iconName = getFileIconName(mimeType, filename)
-const Icon = FILE_ICON_MAP[iconName]  // FILE_ICON_MAP: Record<FileIconName, React.ElementType>
+const Icon = FILE_ICON_MAP[iconName]
 const color = getFileIconColor(iconName)
 
 return <Icon weight="duotone" className={`h-5 w-5 ${color}`} />
 ```
 
-**All other icons** — use `lucide-react`.
-
-Never mix these up: Phosphor for files, Lucide for everything else.
+**All other icons** — `lucide-react`. Never mix them up.
 
 ### Toasts
 
 ```ts
 import { toast } from 'sonner'
-
 toast.success('Resource saved')
 toast.error('Something went wrong')
 ```
 
----
+### Org URLs
 
-## Sidebar Navigation
+Use `orgSlug(name)` from `lib/slug.ts` when linking to an org:
 
-Edit `components/layout/AppSidebar.tsx`. Add to the `mainNav` array:
-
-```ts
-const mainNav: NavItem[] = [
-  { title: 'New Page', href: '/new-page', icon: SomeIcon },
-
-  // Admin-only (visible to admins and napaAdmins)
-  { title: 'Admin Thing', href: '/admin/thing', icon: SomeIcon, adminOnly: true },
-
-  // napaAdmin-only (NAPA staff only)
-  { title: 'Super Admin', href: '/admin/super', icon: SomeIcon, napaAdminOnly: true },
-
-  // Not yet built
-  { title: 'Future Feature', href: '/future', icon: SomeIcon, comingSoon: true },
-]
+```tsx
+import { orgSlug } from '@/lib/slug'
+<Link href={`/org/${orgSlug(org.organizationName)}`}>...</Link>
 ```
 
-Also register the page title in `components/layout/TopNav.tsx` in the `PAGE_TITLES` map — the top nav reads from this to display the current page name.
+The detail page accepts both the slug and the exact name (legacy support).
 
 ---
 
 ## Permissions
 
-Never hardcode role string checks inline. Always use the functions from `lib/permissions.ts`:
+Use `lib/permissions.ts` functions instead of inline role checks:
 
 ```ts
 import {
-  canViewResource,
-  canEditResource,
-  canDeleteResource,
-  canDownloadResource,
-  canArchiveResource,
+  canViewResource, canEditResource, canDeleteResource,
+  canDownloadResource, canArchiveResource,
+  isNapaBoard, isNapaDirector, isNapaUser,
+  canViewOrgHealth, canApproveUsers, canManageRoles,
 } from '@/lib/permissions'
-
-canViewResource(user, resourceOrg)
-canEditResource(user, resourceOrg, uploadedById)
-canDeleteResource(user, resourceOrg)
-canDownloadResource(user, resourceOrg, allowDownload)
-canArchiveResource(user, resourceOrg)
 ```
 
-If you need a new permission rule, add it to `lib/permissions.ts` — do not scatter logic across components or API routes.
+If you need a new permission rule, add it there — do not scatter logic across components or API routes.
+
+### Notable nuances
+
+- `canDeleteResource` / `canArchiveResource`: only an admin from the resource's owning org can delete or archive. NAPA staff are intentionally locked out. Keep server-side checks aligned.
+- `canViewOrgHealth`: NAPA Board always; Director only if their `canViewOrgHealth` flag is true. The flag is editable on `/admin/users` by Board.
+- NAPA role grants (`napaBoard`, `napaDirector`) can only be assigned in the **NAPA org** (`National APIDA Panhellenic Association`). Both `/api/v2/admin/users/[userId]` and `/api/v2/members` POST/PATCH enforce this server-side.
 
 ---
 
@@ -204,17 +234,26 @@ The upload flow is split across two API calls:
 1. Client POSTs `FormData` to `/api/v2/upload` → receives `{ url, name }`
 2. Client POSTs resource metadata + the file array to `/api/v2/resources`
 
-Files are stored in Cloudflare R2 and served via `/api/v2/resources/[id]/serve`, which generates signed URLs with a 1-hour expiry — never expose raw R2 URLs directly.
+Files are stored in Cloudflare R2 and served via `/api/v2/resources/[id]/serve`, which generates signed URLs with a 5-minute expiry. The serve route also writes a `'downloaded'` audit log entry so org admins can see who downloaded what.
 
-Server-side, the upload route validates files using magic bytes (not just MIME type or extension). That logic lives in `lib/file-validation.ts`. If you need to support a new file type, update the allowed types there.
+`allowDownload` is a per-resource boolean. The UploadResourceDialog surfaces a checkbox only when files are attached. False means non-owner-org users can still see the resource but can't grab the file.
+
+Server-side, the upload route validates files using magic bytes (not just MIME type or extension). That logic lives in `lib/file-validation.ts`. To support a new file type, update the allowed types there.
 
 ---
 
 ## Search
 
-`CommandSearch` (in `TopNav`) calls `/api/v2/search?q=` with a 200ms debounce and a minimum of 2 characters. Results render with a bordered icon box, title, subtitle, and a `ChevronRight`.
+The cmdk `CommandSearch` lives in the **sidebar** (not TopNav) and is gated by user role:
 
-To surface a new entity type in search results, update the search API route handler — do not create a separate search endpoint.
+- `NAV_PAGES` in `components/CommandSearch.tsx` has `adminOnly`, `napaOnly`, `napaBoardOnly` flags
+- The visible list filters based on the current user's role before rendering
+
+To surface a new resource type in **server-side search results**, update the `/api/v2/search?q=` handler — do not create a separate endpoint.
+
+### Sidebar badges
+
+`/api/v2/sidebar-badges` returns `{newResourcesCount, approvalsCount, lastResourcesViewedAt}`. AppSidebar polls every 60s. The home page calls `/api/v2/resources/mark-viewed` on mount to clear the "new resources" count (after capturing the prior timestamp so the NEW pill can render on individual rows).
 
 ---
 
@@ -222,7 +261,7 @@ To surface a new entity type in search results, update the search API route hand
 
 ### Middleware
 
-In Next.js 16, the middleware file is `proxy.ts`, **not** `middleware.ts`. Next.js 16 renamed the convention. If you create `middleware.ts`, it will be silently ignored.
+In Next.js 16, the middleware file is `proxy.ts`, **not** `middleware.ts`. If you create `middleware.ts`, it will be silently ignored.
 
 ### Session Cookies
 
@@ -233,16 +272,11 @@ In Next.js 16, the middleware file is `proxy.ts`, **not** `middleware.ts`. Next.
 
 ### OTP Re-verification
 
-Users must re-verify via OTP every 60 days. This is enforced in two places:
+Users must re-verify via OTP every 60 days. Enforced at both `proxy.ts` (edge fast-path) and `app/(dashboard)/layout.tsx` (server gate). New protected routes are covered automatically by the layout.
 
-- `proxy.ts` — redirects unauthenticated or expired sessions
-- `app/(dashboard)/layout.tsx` — server-side check as a second gate
+### NAPA Email Auto-Promotion
 
-If you add a new protected route, both checks already cover it via the layout — no additional work needed.
-
-### NAPA Admin Auto-Promotion
-
-Users with `@napahq.org` or `@napa-online.org` email addresses are automatically granted the `napaAdmin` role on sign-in. This is handled in `lib/auth.ts` via `isNapaEmail()`. Do not replicate this logic elsewhere.
+Users with `@napahq.org` or `@napa-online.org` emails are auto-approved and given `isAdmin = true` in the NAPA org. Their `role` stays `'user'` until a NAPA Board member manually promotes them. See `lib/auth.ts` `isNapaEmail()`.
 
 ---
 
@@ -251,31 +285,36 @@ Users with `@napahq.org` or `@napa-online.org` email addresses are automatically
 This project uses Tailwind v4. Several things work differently from v3:
 
 - **PostCSS config must be `postcss.config.js` (CJS)** — Turbopack ignores `postcss.config.mjs`. If styles stop loading, check this first.
-- **No `tailwind.config.ts`** — all theme configuration (colors, spacing, fonts) lives in `app/globals.css` under `@theme inline`.
+- **No `tailwind.config.ts`** — all theme configuration lives in `app/globals.css` under `@theme inline`.
 - **CSS variable shorthand** — `w-(--sidebar-width)` is valid v4 syntax.
-- **Animation plugin** — `tw-animate-css` is used instead of `tailwindcss-animate`. Import it in `globals.css` as `@import "tw-animate-css"`.
-- **Dark mode** — enabled via `@custom-variant dark (&:is(.dark *))` (class-based, not media query).
-- **shadcn components** — components copied from other Tailwind v4 projects work as-is; no conversion step needed.
+- **Animation plugin** — `tw-animate-css` (not `tailwindcss-animate`). Import via `@import "tw-animate-css"` in globals.css.
+- **No dark mode** — `.dark` block and `@custom-variant dark` were removed. App is light-only. Don't reintroduce dark variants unless we revisit the decision.
 
 ---
 
-## shadcn Components Not in Registry
+## Org Health
 
-Some shadcn components are not available in the Vega registry and were manually copied from `/Users/darshan/Development/greek_os`:
+Five-dimension engagement score (0–100). Each dimension has a 16-point baseline so empty orgs start at 80, not 0. Completion brings each dimension to 20. See ADR-006 for the rationale and exact math.
 
-- `components/ui/sidebar.tsx`
-- `components/ui/collapsible.tsx`
-- `components/ui/sheet.tsx`
-- `components/ui/tooltip.tsx`
-- `components/ui/popover.tsx`
+### Annual dues target
 
-To update one of these, copy the latest version from `greek_os/components/ui/` or directly from the [shadcn GitHub](https://github.com/shadcn-ui/ui). Do not run `npx shadcn add` for these — it will either fail or overwrite with an incompatible version.
+The Board sets one platform-wide annual dues target per year via the strip at the top of `/admin/org-health`. Stored in `platform_dues_targets`. Per-org overrides exist in `dues_records.amount_cents` — when present they override the platform target for that org/year.
+
+### NAPAAM scoring
+
+Annual ("NAPAAM") meetings get their own column. Attendee count per org per meeting is stored on `meeting_attendance.attendee_count`. Score: 2+ = 20, 1 = 10, 0 = 0 once the meeting date has passed; before that, baseline 16.
+
+### Monthly past-only
+
+Future monthly meetings show in the `X/12` attended column but don't drag the score down. Server filters by `meetingDate < now` for the score calc.
+
+### Self-service detail page
+
+`/org/[slug]` is accessible to any approved user of that org (own-org) AND to NAPA staff (any org). The page shows score tiles, year-filterable leaders, and meetings attended for the year. Leaders can be year-tagged via `org_leaders.year` (NULL = ongoing); when filtering by year, the page returns both year-specific rows and ongoing ones.
 
 ---
 
 ## Pinned Dependencies
-
-Several packages are intentionally held at older major versions. Do not upgrade these without a deliberate audit:
 
 | Package | Pinned at | Reason |
 |---|---|---|
@@ -285,24 +324,17 @@ Several packages are intentionally held at older major versions. Do not upgrade 
 | `file-type` | 21.x | v22 is a major release |
 | `@types/node` | 20.x | v25 could affect server-side type definitions |
 
-If you need to upgrade one of these, audit the changelog for breaking changes and test the affected paths before merging.
+Don't upgrade these without auditing the changelog and testing the affected paths.
 
 ---
 
 ## Development Setup
 
 ```bash
-# Install dependencies
 npm install
-
-# Run the dev server (Turbopack)
-npm run dev
-
-# Run migrations
-node scripts/migrate.mjs
-
-# Type-check
-npx tsc --noEmit
+npm run dev                 # Turbopack dev server
+npm run db:generate         # after schema changes
+npx tsc --noEmit            # type-check
 ```
 
-Environment variables are required for the database, auth, and R2 — copy `.env.example` to `.env.local` and fill in the values before running locally.
+Environment variables required: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`. Copy `.env.local.example` to `.env.local` to seed.

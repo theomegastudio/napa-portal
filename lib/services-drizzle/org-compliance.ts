@@ -12,6 +12,11 @@ function requireNapaWrite(user: { role: string; canViewOrgHealth: boolean }) {
   throw new Error('Unauthorized: only NAPA staff with Org Health access can edit compliance');
 }
 
+/**
+ * One row per (organization, year). Mirrors the orgYearlyCompliance table but
+ * is dense — every active org gets a row in the response even when no flags
+ * have been set yet, so the UI can render an unchecked state without nullables.
+ */
 export interface OrgComplianceRow {
   organizationName: string;
   year: number;
@@ -20,7 +25,12 @@ export interface OrgComplianceRow {
   notes: string | null;
 }
 
-/** All compliance rows for the given year (one per org, even if not yet recorded). */
+/**
+ * List compliance flags for every active non-NAPA org in the given year. Missing
+ * underlying rows are filled in with nulls so the caller doesn't have to merge.
+ *
+ * @throws Error('Unauthorized: NAPA staff required') if the caller is not Board or Director.
+ */
 export async function getOrgCompliance(year: number): Promise<OrgComplianceRow[]> {
   const user = await requireAuth();
   if (!user.isNapaAdmin) throw new Error('Unauthorized: NAPA staff required');
@@ -49,8 +59,18 @@ export async function getOrgCompliance(year: number): Promise<OrgComplianceRow[]
 }
 
 /**
- * Set or clear a compliance flag for an org in a given year. Uses upsert.
- * `value=null` clears the timestamp. `value=true` sets it to now.
+ * Toggle one of the per-org-per-year compliance flags.
+ *
+ * @param organizationName  Target org (cannot be the NAPA parent body).
+ * @param year              4-digit year the flag applies to.
+ * @param field             Which flag - `'renewal'` for membership renewal + certification,
+ *                          `'oneOnOne'` for the annual 1x1 with NAPA.
+ * @param value             `true` writes the current timestamp; `false` clears it.
+ *
+ * Auto-creates the underlying row if it doesn't exist. Board can always write;
+ * Directors require `canViewOrgHealth = true`.
+ *
+ * @throws Error if the caller lacks write access or the target is the NAPA parent body.
  */
 export async function setOrgComplianceFlag(
   organizationName: string,
