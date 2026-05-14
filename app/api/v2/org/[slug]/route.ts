@@ -66,6 +66,11 @@ export async function GET(
   const monthlyMeetings = yearMeetings.filter(m => m.meetingType === 'monthly')
   const annualMeetings = yearMeetings.filter(m => m.meetingType === 'annual')
 
+  // Future-dated meetings haven't happened yet - excluded from "X/N so far"
+  // display and from scoring. Mirrors /api/v2/admin/org-health.
+  const now = new Date()
+  const pastMonthlyMeetings = monthlyMeetings.filter(m => m.meetingDate < now)
+
   const attendance = yearMeetings.length
     ? await db.query.meetingAttendance.findMany()
     : []
@@ -75,19 +80,15 @@ export async function GET(
   const attendedByMeeting = new Map(ownAttendance.map(a => [a.meetingId, a.attendeeCount ?? 0]))
 
   // Score (matches /api/v2/admin/org-health math; baseline 16 per dimension).
-  const now = new Date()
   let monthlyCreditSum = 0
-  let monthlyPastCount = 0
   let monthlyAttended = 0
-  for (const m of monthlyMeetings) {
+  for (const m of pastMonthlyMeetings) {
     const c = attendedByMeeting.get(m.id) ?? 0
     if (c >= 1) monthlyAttended++
-    if (m.meetingDate < now) {
-      monthlyPastCount++
-      if (c >= 2) monthlyCreditSum += 1
-      else if (c === 1) monthlyCreditSum += 0.5
-    }
+    if (c >= 2) monthlyCreditSum += 1
+    else if (c === 1) monthlyCreditSum += 0.5
   }
+  const monthlyPastCount = pastMonthlyMeetings.length
   let napaamAttendees = 0
   let napaamHasOccurred = false
   for (const m of annualMeetings) {
@@ -141,7 +142,7 @@ export async function GET(
       isOwnOrg,
     },
     metrics: {
-      monthlyMeetings: monthlyMeetings.length,
+      monthlyMeetings: monthlyPastCount,
       monthlyAttended,
       napaamAttendees,
       renewalCompleted,

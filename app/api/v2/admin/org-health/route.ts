@@ -4,15 +4,10 @@ import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { organizations, duesRecords, meetingAttendance, meetings, orgYearlyCompliance, platformDuesTargets } from '@/lib/db/schema'
 import { and, eq, gte, lt, ne, sql } from 'drizzle-orm'
+import { NAPA_ORG_NAME } from '@/lib/constants'
+import { canViewOrgHealth as canViewOrgHealthPermission, type SessionUser } from '@/lib/permissions'
 
-const NAPA_ORG_NAME = 'National APIDA Panhellenic Association'
 const MIN_ATTENDEES_PER_MEETING = 2
-
-interface SessionUser {
-  role?: string
-  isAdmin?: boolean
-  organizationName?: string
-}
 
 export async function GET(request: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -20,11 +15,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const user = session.user as unknown as SessionUser & { canViewOrgHealth?: boolean }
-  const allowed =
-    user.role === 'napaBoard' ||
-    (user.role === 'napaDirector' && !!user.canViewOrgHealth)
-  if (!allowed) {
+  const user = session.user as unknown as SessionUser
+  if (!canViewOrgHealthPermission(user)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -62,6 +54,11 @@ export async function GET(request: NextRequest) {
   const monthlyMeetings = yearMeetings.filter((m) => m.meetingType === 'monthly')
   const annualMeetings = yearMeetings.filter((m) => m.meetingType === 'annual')
 
+  // Future-dated meetings shouldn't count toward "X meetings so far" or trigger
+  // low-attendance warnings - they simply haven't happened yet.
+  const now = new Date()
+  const pastMonthlyMeetings = monthlyMeetings.filter((m) => m.meetingDate < now)
+
   // Attendance for this year's meetings. We track attendeeCount per (meeting, org)
   // and use it to derive scores: 2+ = full credit, 1 = half credit, 0 = none.
   const meetingIds = yearMeetings.map((m) => m.id)
@@ -81,9 +78,10 @@ export async function GET(request: NextRequest) {
   })
   const complianceMap = new Map(compliance.map((c) => [c.organizationName, c]))
 
-  // Low-attendance meetings: any monthly meeting where total attendee count
-  // across all orgs is below MIN_ATTENDEES_PER_MEETING.
-  const lowAttendanceMonthly = monthlyMeetings
+  // Low-attendance meetings: any PAST monthly meeting where total attendee
+  // count across all orgs is below MIN_ATTENDEES_PER_MEETING. Future meetings
+  // are excluded - they have no attendance yet by definition.
+  const lowAttendanceMonthly = pastMonthlyMeetings
     .map((m) => {
       const counts = countsByMeeting.get(m.id)
       const total = counts ? Array.from(counts.values()).reduce((s, n) => s + n, 0) : 0
@@ -100,22 +98,17 @@ export async function GET(request: NextRequest) {
     const duesPartial = paidCents > 0 && !duesPaid
 
     // Monthly: per-meeting credit by attendee_count. 2+ = 1.0, 1 = 0.5, 0 = 0.
-    // For scoring we ONLY consider meetings whose date is in the past - future
-    // meetings count in the X/12 display but don't drag the score down yet.
-    const now = new Date()
+    // We only look at past meetings - future ones are tracked separately and
+    // don't affect either the X/N display or the score until they happen.
     let monthlyCreditSum = 0
-    let monthlyPastCount = 0
     let monthlyAttended = 0
-    for (const m of monthlyMeetings) {
+    for (const m of pastMonthlyMeetings) {
       const c = countsByMeeting.get(m.id)?.get(org.organizationName) ?? 0
-      if (c >= 2) monthlyAttended++
-      else if (c === 1) monthlyAttended++
-      if (m.meetingDate < now) {
-        monthlyPastCount++
-        if (c >= 2) monthlyCreditSum += 1
-        else if (c === 1) monthlyCreditSum += 0.5
-      }
+      if (c >= 1) monthlyAttended++
+      if (c >= 2) monthlyCreditSum += 1
+      else if (c === 1) monthlyCreditSum += 0.5
     }
+    const monthlyPastCount = pastMonthlyMeetings.length
 
     // NAPAAM attendees: sum count across annual meetings whose date is in the past.
     let napaamAttendees = 0
@@ -152,7 +145,7 @@ export async function GET(request: NextRequest) {
       slug: org.slug,
       memberCount,
       displayOrder: org.displayOrder,
-      monthlyMeetings: monthlyMeetings.length,
+      monthlyMeetings: monthlyPastCount,
       monthlyAttended,
       napaamAttendees,
       renewalCompleted,
@@ -176,7 +169,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     year,
     organizations: result,
-    monthlyMeetingCount: monthlyMeetings.length,
+    monthlyMeetingCount: pastMonthlyMeetings.length,
     annualMeetingCount: annualMeetings.length,
     lowAttendanceMonthly,
     minAttendeesPerMeeting: MIN_ATTENDEES_PER_MEETING,

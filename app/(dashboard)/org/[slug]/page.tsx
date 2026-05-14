@@ -228,7 +228,7 @@ export default function OrgDetailPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <ScoreTile label="Engagement Score" value={`${score}/100`} valueClass={scoreColor} />
-        <ScoreTile label="Monthly Meetings" value={`${metrics.monthlyAttended}/${metrics.monthlyMeetings}`} />
+        <ScoreTile label="Monthly Meetings (YTD)" value={`${metrics.monthlyAttended}/${metrics.monthlyMeetings}`} />
         <ScoreTile label="NAPAAM Attendees" value={String(metrics.napaamAttendees)} />
         <ScoreTile label="Renewal & Cert" value={metrics.renewalCompleted ? 'Complete' : 'Incomplete'} valueClass={metrics.renewalCompleted ? 'text-green-700' : 'text-muted-foreground'} />
         <ScoreTile label="1x1 with NAPA" value={metrics.oneOnOneCompleted ? 'Complete' : 'Incomplete'} valueClass={metrics.oneOnOneCompleted ? 'text-green-700' : 'text-muted-foreground'} />

@@ -204,7 +204,7 @@ export default function OrgHealthPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Organization</TableHead>
-                    <TableHead className="text-center">Monthly Meetings</TableHead>
+                    <TableHead className="text-center">Monthly Meetings (YTD)</TableHead>
                     <TableHead className="text-center">NAPAAM</TableHead>
                     <TableHead className="text-center">Renewal &amp; Cert</TableHead>
                     <TableHead className="text-center">Dues</TableHead>
