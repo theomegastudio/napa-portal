@@ -27,8 +27,10 @@ export interface AuthUser {
 }
 
 /**
- * Get the current authenticated user session
- * Use this in Server Components and Server Actions
+ * Get the current authenticated user session (may be unauthenticated or stale).
+ * Returns null if not logged in. Use this in Server Components and Server Actions
+ * where you need to check conditional auth (e.g., render login link vs. user menu).
+ * For protected routes, use `requireAuth()` or `requireApprovedAuth()`.
  */
 export async function getSession() {
   try {
@@ -43,7 +45,10 @@ export async function getSession() {
 
 /**
  * Get the current user or throw if not authenticated.
- * Does NOT enforce approval status - use requireApprovedAuth() for protected routes.
+ * Does NOT enforce approval status or OTP freshness.
+ * For protected data routes, use `requireApprovedAuth()` instead (enforces both approval + OTP).
+ * Use `requireAuth()` only in setup/initialization code where you need the user object
+ * but approval isn't required yet.
  */
 export async function requireAuth(): Promise<AuthUser> {
   const session = await getSession();
@@ -82,14 +87,22 @@ export async function requireAuth(): Promise<AuthUser> {
 
 /**
  * Get the current user and ensure they are approved AND that their OTP
- * re-verification (every 60 days) is still fresh.
+ * re-verification (every 60 days) is still fresh. Use this for all protected
+ * data routes; never use the weaker `requireAuth()` on an API endpoint.
  *
- * The OTP-freshness check matches the UI-side gate in `proxy.ts` and the
- * dashboard layout - without it, a session older than 60 days could still
- * call any data API directly even though the UI redirects them to /verify-email.
+ * Enforces two conditions:
+ * 1. `user.approvalStatus === 'approved'` (Board must have manually approved)
+ * 2. `user.emailVerificationRequired === false` (OTP is fresh; session < 60 days old)
  *
- * Distinct error messages let callers map to 401/403/428 status codes if
- * they want a finer-grained response.
+ * The OTP-freshness check is part of a three-layer enforcement (ADR-008):
+ * - proxy.ts redirects at the edge if stale
+ * - app/(dashboard)/layout.tsx gates the dashboard if stale
+ * - This function throws on API routes if stale (cannot be bypassed)
+ *
+ * Throws distinct error messages so callers can map to HTTP status:
+ * - "Unauthorized" → 401 (no session)
+ * - "Account not approved" → 403 (pending or rejected)
+ * - "OTP verification required" → 403 (session stale, user must re-verify)
  */
 export async function requireApprovedAuth(): Promise<AuthUser> {
   const user = await requireAuth();

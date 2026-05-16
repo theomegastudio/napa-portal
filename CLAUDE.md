@@ -36,19 +36,21 @@ Migration ran 2026-05-12: existing `napaAdmin` role → `napaBoard`. See ADR-005
 `auth-helpers.AuthUser` exposes `isNapaBoard`, `isNapaDirector`, and `isNapaAdmin` (alias for board || director). Use these instead of raw `role` checks.
 
 ### Auth Flow
-1. Signup → `status = 'pending'`
-2. Admin approves → `status = 'approved'`
-3. Email OTP re-verification required every 60 days (`isOTPVerificationRequired`)
-4. `@napahq.org` / `@napa-online.org` emails are placed in the NAPA org and get `isAdmin = true` automatically. `role` stays `user` until manually promoted to `napaBoard` / `napaDirector` by an existing Board member.
-5. Session cookie: `better-auth.session_token` (prod: `__Secure-better-auth.session_token`)
+1. Signup → `status = 'pending'` (all users, including NAPA email domain)
+2. NAPA Board approves in `/admin/approvals` → `status = 'approved'`
+3. Email OTP re-verification required every 60 days. Enforced at three layers: `proxy.ts` (edge), dashboard layout (server), and `requireApprovedAuth()` (API). See ADR-008.
+4. `@napahq.org` / `@napa-online.org` emails are placed in the NAPA org (`National APIDA Panhellenic Association`) and get `isAdmin = true` automatically. They still require Board approval and do NOT auto-escalate to `napaBoard` / `napaDirector` roles.
+5. To promote a NAPA user to Board/Director: existing Board member edits them in `/admin/users` and sets `role` to `napaBoard` or `napaDirector`.
+6. Session cookie: `better-auth.session_token` (prod: `__Secure-better-auth.session_token`)
 
 ## Key Files
 | File | Purpose |
 |------|---------|
 | `proxy.ts` | Next.js 16 middleware — MUST be `proxy.ts` (v16 naming); auth gate, redirects unauthenticated to /login |
-| `lib/auth.ts` | BetterAuth config: emailOTP, drizzle adapter, bcrypt |
-| `lib/auth-helpers.ts` | `requireAuth`, `requireApprovedAuth`, `AuthUser` shape with role flags |
+| `lib/auth.ts` | BetterAuth config: emailOTP, drizzle adapter, bcrypt, rate limiting |
+| `lib/auth-helpers.ts` | `requireAuth`, `requireApprovedAuth` (enforces approval + OTP freshness), `AuthUser` shape with role flags |
 | `lib/auth-client.ts` | Client auth hooks: `useSession`, `signOut`, `isOTPVerificationRequired` |
+| `lib/constants.ts` | Single source of truth: `NAPA_ORG_NAME = 'National APIDA Panhellenic Association'` |
 | `lib/permissions.ts` | `canViewResource`, `canEditResource`, `canDeleteResource` (owner-org admin only), `canDownloadResource`, `canArchiveResource`, `canViewOrgHealth` |
 | `lib/db/schema.ts` | Drizzle schema |
 | `lib/db/index.ts` | neon-serverless db client |
@@ -141,8 +143,65 @@ The legacy `scripts/migrate.mjs` is no longer used.
 - `<CommandDialog>` needs an internal `<Command>` wrapper for cmdk — the registry block ships without it; we patched `components/ui/command.tsx` to include it.
 - `Select.SelectValue` renders the raw value by default, not the SelectItem's text. For filter dropdowns we put `<span>{labelForValue(value)}</span>` inside `SelectTrigger` directly instead of `<SelectValue/>`.
 
+## Security Architecture
+
+### Three Layers of OTP Freshness Enforcement (ADR-008)
+
+OTP re-verification (60-day window) is enforced at three independent layers to prevent bypassing via direct API calls:
+
+1. **`proxy.ts`** — redirects stale sessions away from dashboard URLs at the edge (fastest, catches most users)
+2. **`app/(dashboard)/layout.tsx`** — server-side gate on layout render (catches dashboard-only routes)
+3. **`requireApprovedAuth()`** — API routes throw if session is stale (cannot be bypassed, new 2026-05-14)
+
+All three read from `isOTPVerificationRequired()` in `lib/auth.ts`, so changing `OTP_VALIDITY_DAYS` updates all three automatically. Never call the weaker `requireAuth()` on a data route; always use `requireApprovedAuth()`.
+
+### Cross-Org Resource Isolation (ADR-009)
+
+Non-NAPA users can only access their own org's resources via these mechanisms:
+
+- Service layer filtering: `getResources()` and `getResourceById()` filter by org
+- Permission checks: `canViewResource()`, `canEditResource()`, `canDeleteResource()`, `canDownloadResource()` enforce org membership
+- List endpoints: `/api/v2/sidebar-badges`, `/api/v2/resources`, etc. apply org-scoping for non-NAPA users
+- Detail endpoints: return `null` (not 403) for cross-org lookups to avoid ID enumeration attacks
+
+The `allowDownload` flag on resources is now enforced: a resource can be visible but un-downloadable if the flag is false. Non-owner-org users respect this; owner-org admins always can download.
+
+### Rate Limiting
+
+BetterAuth rate limiting in `lib/auth.ts` protects auth endpoints from brute force:
+
+```ts
+customRules: {
+  '/sign-in/email': { window: 60, max: 5 },
+  '/email-otp/send-verification-otp': { window: 60, max: 3 },
+  '/email-otp/verify-otp': { window: 60, max: 10 },
+  '/forget-password': { window: 60, max: 3 },
+}
+```
+
+This prevents 6-digit OTP brute-forcing (max 3 sends/minute, max 10 verify attempts/minute). The custom signup route at `/api/v2/auth/signup` is NOT covered by BetterAuth's limiter — if signup abuse becomes a problem, add a per-IP throttle there.
+
+### File Upload Validation
+
+- **Magic bytes**: Server validates actual file type (not client-supplied MIME type), preventing Content-Type mismatch attacks
+- **Whitelist**: Only `ALLOWED_MIME_TYPES` from `lib/file-validation.ts` are accepted
+- **Size limit**: 50MB max per file
+- **Filename sanitization**: Removes special chars and path-traversal sequences
+- **Storage**: Files stored in private Cloudflare R2 bucket; served via signed URLs from `/api/v2/resources/[id]/serve` (5-min TTL)
+
+### NAPA Email Domain
+
+`@napahq.org` and `@napa-online.org` emails are recognized at signup but:
+- **Do NOT auto-approve** the account
+- **Do NOT grant platform admin powers** automatically
+- **Only set organizationName** to NAPA and `isAdmin = true` in that org
+- **Still require Board approval** like any other user
+- **Still require role grant** (`napaBoard` / `napaDirector`) from an existing Board member
+
+This prevents fake-email auth bypass attacks.
+
 ## Conventions
-- **API routes**: always under `app/api/v2/`. Auth check at the top of every handler. Cast `session.user` to `ExtendedUser` (or `SessionUser`) since BetterAuth's default user type is missing our custom fields.
+- **API routes**: always under `app/api/v2/`. All protected routes must call `requireApprovedAuth()` at the top (not the weaker `requireAuth()`). Cast `session.user` to `ExtendedUser` (or `SessionUser`) since BetterAuth's default user type is missing our custom fields. Map error messages to HTTP status: `'Unauthorized'` → 401, everything else → 403.
 - **File icons**: `@phosphor-icons/react` with `weight="duotone"`; look up via `FILE_ICON_MAP` in `lib/file-icons.ts`. All other icons use `lucide-react`.
 - **Forms / resource actions**: centered `<Dialog>`. Sheet is reserved for non-form side panels.
 - **Resource row clicks**: open `ResourceDetailDialog` rather than navigating to `/resources/[id]`. The dedicated detail route is retained only for direct URL access.

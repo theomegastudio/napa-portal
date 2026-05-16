@@ -108,10 +108,27 @@ The same gating mirror in `components/CommandSearch.tsx`'s `NAV_PAGES` — pleas
 ## API Routes
 
 - All routes live under `app/api/v2/` — do not create routes outside this prefix
-- Always authenticate at the top of every handler
-- Return `NextResponse.json({ error: '...' }, { status: 4xx })` for error responses
+- **All protected routes must call `requireApprovedAuth()`**, not `requireAuth()`. `requireApprovedAuth()` checks both approval status AND OTP freshness (session age). See ADR-008.
+- Return `NextResponse.json({ error: '...' }, { status: 4xx })` for error responses with the pattern:
+  ```ts
+  try {
+    await requireApprovedAuth()
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Unauthorized'
+    const status = msg === 'Unauthorized' ? 401 : 403
+    return NextResponse.json({ error: msg }, { status })
+  }
+  ```
 - Cast `session.user` to `ExtendedUser` — the default Better Auth user type is missing project-specific fields
 - For role-sensitive writes, prefer `user.role === 'napaBoard'` over a generic `isAdmin` check. NAPA Director and org admins are intentionally limited
+- **Always enforce permission checks at the service layer**, not just at the API layer. Example:
+  ```ts
+  // ✅ CORRECT: check in the service function
+  if (!canEditResource(user, resource.organization)) {
+    throw new Error('Unauthorized')
+  }
+  ```
+- Never skip permission checks when data is org-scoped. A user from org A cannot edit org B's resources, even with global admin privileges. Use helpers from `lib/permissions.ts`
 
 ---
 
@@ -224,6 +241,82 @@ If you need a new permission rule, add it there — do not scatter logic across 
 - `canDeleteResource` / `canArchiveResource`: only an admin from the resource's owning org can delete or archive. NAPA staff are intentionally locked out. Keep server-side checks aligned.
 - `canViewOrgHealth`: NAPA Board always; Director only if their `canViewOrgHealth` flag is true. The flag is editable on `/admin/users` by Board.
 - NAPA role grants (`napaBoard`, `napaDirector`) can only be assigned in the **NAPA org** (`National APIDA Panhellenic Association`). Both `/api/v2/admin/users/[userId]` and `/api/v2/members` POST/PATCH enforce this server-side.
+- `canViewResource`, `canEditResource`, `canDeleteResource` enforce cross-org isolation: non-NAPA users can only access their own org's resources, even if they have `isAdmin = true`. See ADR-009.
+
+### Permission Enforcement Pattern
+
+When building any endpoint that reads/writes org-scoped data:
+
+```ts
+// ✅ CORRECT: enforce via permission helper
+if (!canEditResource(user, resource.organization)) {
+  throw new Error('Unauthorized: Cannot edit resources from another organization')
+}
+
+// ❌ WRONG: global isAdmin check allows cross-org access
+if (!user.isAdmin) {
+  throw new Error('Admin only') // org admin from org B can now edit org A's resource!
+}
+```
+
+Org-scoped list endpoints must also filter by organization:
+
+```ts
+// In getResources()
+const conditions = [isNull(resources.deletedAt)]
+if (!user.isNapaAdmin && user.organizationName) {
+  conditions.push(eq(resources.organization, user.organizationName)) // non-NAPA sees only own org
+}
+```
+
+Service functions like `getResourceById()` should return `null` for cross-org lookups (mimics "not found" and hides resource existence):
+
+```ts
+if (!canViewResource(user, resource.organization)) {
+  return null // not throwing — prevents ID enumeration
+}
+```
+
+---
+
+## Input Validation
+
+All user input (from request bodies, query params, file uploads) must be validated at the API boundary. Do not trust client-supplied data.
+
+### Enum Validation
+
+When a route accepts an enum value (e.g., `meetingType`), validate it server-side:
+
+```ts
+const MEETING_TYPES = ['monthly', 'annual', 'general', 'board', 'committee', 'special'] as const
+const meetingType = body.meetingType
+
+if (!MEETING_TYPES.includes(meetingType)) {
+  return NextResponse.json({ error: 'Invalid meeting type' }, { status: 400 })
+}
+```
+
+### Length Bounds
+
+Validate string fields have reasonable bounds:
+
+```ts
+const title = body.title?.trim() || ''
+if (title.length < 1 || title.length > 200) {
+  return NextResponse.json({ error: 'Title must be 1–200 characters' }, { status: 400 })
+}
+```
+
+### Date Validation
+
+Parse and validate dates:
+
+```ts
+const meetingDate = new Date(body.meetingDate)
+if (isNaN(meetingDate.getTime())) {
+  return NextResponse.json({ error: 'Invalid date' }, { status: 400 })
+}
+```
 
 ---
 
@@ -270,13 +363,25 @@ In Next.js 16, the middleware file is `proxy.ts`, **not** `middleware.ts`. If yo
 | Development | `better-auth.session_token` |
 | Production | `__Secure-better-auth.session_token` |
 
-### OTP Re-verification
+### OTP Re-verification (60-day window)
 
-Users must re-verify via OTP every 60 days. Enforced at both `proxy.ts` (edge fast-path) and `app/(dashboard)/layout.tsx` (server gate). New protected routes are covered automatically by the layout.
+Users must re-verify via OTP every 60 days. Enforced at **three independent layers** (keep them in sync):
 
-### NAPA Email Auto-Promotion
+1. **`proxy.ts` middleware** — redirects stale sessions away from dashboard URLs at the edge
+2. **`app/(dashboard)/layout.tsx`** — server-side gate on layout render
+3. **`requireApprovedAuth()`** — throws on all `/api/v2/*` routes if session is older than 60 days
 
-Users with `@napahq.org` or `@napa-online.org` emails are auto-approved and given `isAdmin = true` in the NAPA org. Their `role` stays `'user'` until a NAPA Board member manually promotes them. See `lib/auth.ts` `isNapaEmail()`.
+All three read from `isOTPVerificationRequired()` in `lib/auth.ts`, so changing `OTP_VALIDITY_DAYS` updates all three. The API-layer check (3) was added 2026-05-14 to prevent direct API calls from bypassing the UI gate. See ADR-008.
+
+### NAPA Email Signup
+
+Users with `@napahq.org` or `@napa-online.org` emails are placed in the NAPA org at signup and gain `isAdmin = true` in that org. **They are NOT auto-approved** and **their role stays `'user'` until a NAPA Board member explicitly promotes them**. This prevents fake-email auth bypass. See `lib/auth.ts` `isNapaEmail()`.
+
+To promote a new NAPA Board / Director:
+
+1. User signs up (pending approval)
+2. NAPA Board approves them in `/admin/approvals`
+3. Board edits the user in `/admin/users` and sets their `role` to `napaBoard` or `napaDirector`
 
 ---
 
