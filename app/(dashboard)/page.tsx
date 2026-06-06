@@ -99,7 +99,11 @@ export default function ResourcesPage() {
     if (isOTPVerificationRequired(user as Parameters<typeof isOTPVerificationRequired>[0])) {
       router.push('/verify-email'); return
     }
-    if (!user.organizationName) {
+    // NAPA Board/Director users may have organizationName absent in the session
+    // token if they were promoted manually rather than via the signup flow.
+    // They can still access resources via the server-side org lookup, so skip
+    // the setup prompt for them.
+    if (!user.organizationName && !isNapaAdmin) {
       setNeedsOrgSetup(true)
       setIsResourcesLoading(false)
     } else {
@@ -246,11 +250,13 @@ export default function ResourcesPage() {
           <Archive className="h-4 w-4" />
           {showArchived ? 'Hide Archived' : 'Show Archived'}
         </Button>
-        <UploadResourceDialog
-          onSuccess={() => fetchResources(searchText, resourceType, false)}
-          userEmail={user.email || ''}
-          userOrganization={user.organizationName || ''}
-        />
+        {(isNapaAdmin || user?.isAdmin === true) && (
+          <UploadResourceDialog
+            onSuccess={() => fetchResources(searchText, resourceType, false)}
+            userEmail={user.email || ''}
+            userOrganization={user.organizationName || ''}
+          />
+        )}
       </div>
 
       {isResourcesLoading ? (

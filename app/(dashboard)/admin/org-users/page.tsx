@@ -3,10 +3,12 @@
 import { useSession } from '@/lib/auth-client'
 import OrgUsersClient from '@/components/OrgUsersClient'
 import { Building2 } from 'lucide-react'
+import { NAPA_ORG_NAME } from '@/lib/constants'
 
 interface ExtendedUser {
   id?: string
   organizationName?: string
+  role?: string
 }
 
 export default function OrgUsersPage() {
@@ -15,7 +17,12 @@ export default function OrgUsersPage() {
 
   if (isPending) return null
 
-  if (!user?.organizationName) {
+  const isNapaAdmin = user?.role === 'napaBoard' || user?.role === 'napaDirector'
+  // NAPA Board/Director users may have organizationName unset if promoted
+  // manually rather than via signup; fall back to the canonical NAPA org.
+  const organizationName = user?.organizationName || (isNapaAdmin ? NAPA_ORG_NAME : null)
+
+  if (!organizationName) {
     return (
       <div className="space-y-4">
         <div>
@@ -35,7 +42,7 @@ export default function OrgUsersPage() {
 
   return (
     <OrgUsersClient
-      organizationName={user.organizationName}
+      organizationName={organizationName}
       currentUserId={user?.id || ''}
     />
   )
