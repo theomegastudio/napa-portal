@@ -49,6 +49,31 @@ function roleSelectValue(role: string | null | undefined, isAdmin: boolean): Nap
   return isAdmin ? 'admin' : 'user'
 }
 
+/** Labels/colors for the read-only role pill in the members table. */
+const ROLE_BADGE_LABELS: Record<NapaRole, string> = {
+  user: 'Member',
+  admin: 'Admin',
+  napaBoard: 'NAPA Board',
+  napaDirector: 'NAPA Director',
+}
+
+const ROLE_BADGE_STYLES: Record<NapaRole, string> = {
+  user: 'bg-muted text-muted-foreground',
+  admin: 'bg-sky-100 text-sky-800',
+  napaBoard: 'bg-primary/10 text-primary',
+  napaDirector: 'bg-purple-100 text-purple-800',
+}
+
+function RoleBadge({ role, isAdmin }: { role?: string | null; isAdmin: boolean }) {
+  const key = roleSelectValue(role, isAdmin)
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${ROLE_BADGE_STYLES[key]}`}>
+      {key !== 'user' && <Shield className="h-3 w-3 mr-1" />}
+      {ROLE_BADGE_LABELS[key]}
+    </span>
+  )
+}
+
 export default function OrgUsersClient({ organizationName, currentUserId }: OrgUsersClientProps) {
   const isNapaOrg = organizationName === NAPA_ORG_NAME
   const [members, setMembers] = useState<Member[]>([])
@@ -288,16 +313,7 @@ export default function OrgUsersClient({ organizationName, currentUserId }: OrgU
                         </div>
                       </TableCell>
                       <TableCell>
-                        {member.isAdmin ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                            <Shield className="h-3 w-3 mr-1" />
-                            Admin
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">
-                            Member
-                          </span>
-                        )}
+                        <RoleBadge role={member.role} isAdmin={member.isAdmin} />
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {member.createdAt ? new Date(member.createdAt).toLocaleDateString() : 'N/A'}
