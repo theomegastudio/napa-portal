@@ -273,6 +273,8 @@ export default function AdminUsersPage() {
     }
   }
 
+  // Role pill for the All Users table: NAPA Board (gold), NAPA Director (purple),
+  // Admin (sky), Member (muted). Mirrors OrgUsersClient's RoleBadge scheme.
   const getRoleBadge = (user: User) => {
     const base = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium'
     if (user.role === 'napaBoard') return <span className={`${base} bg-primary/10 text-primary`}><Shield className="h-3 w-3 mr-1" />NAPA Board</span>

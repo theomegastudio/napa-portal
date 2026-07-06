@@ -7,11 +7,18 @@ import { NAPA_ORG_NAME } from '@/lib/constants';
 
 export type Member = Pick<
   User,
-  'id' | 'email' | 'organizationName' | 'isAdmin' | 'createdAt'
+  'id' | 'email' | 'organizationName' | 'isAdmin' | 'role' | 'approvalStatus' | 'banned' | 'createdAt'
 >;
 
 /**
- * Get members of an organization
+ * List all users in an organization, for the Org Users admin page.
+ *
+ * Access: caller must be a member of `organizationName` or a NAPA admin
+ * (Board/Director); otherwise throws `Unauthorized`. Ordered newest-first.
+ *
+ * Returns the fields the Org Users table renders — including `role`,
+ * `approvalStatus`, and `banned` for the role and status badges. Note the UI
+ * imports the `Member` shape from `@/lib/types`, which mirrors this Pick.
  */
 export async function getOrgMembers(
   organizationName: string

@@ -46,6 +46,7 @@ Migration ran 2026-05-12: existing `napaAdmin` role → `napaBoard`. See ADR-005
 ## Key Files
 | File | Purpose |
 |------|---------|
+| `scripts/seed.mjs` | Idempotent seed script — inserts 2025+2026 orgs, meetings, attendance, dues, compliance into either Neon branch. Run with `node scripts/seed.mjs`; reads `.env.local` automatically. Override DB with `DATABASE_URL=... node scripts/seed.mjs`. |
 | `proxy.ts` | Next.js 16 middleware — MUST be `proxy.ts` (v16 naming); auth gate, redirects unauthenticated to /login |
 | `lib/auth.ts` | BetterAuth config: emailOTP, drizzle adapter, bcrypt, rate limiting |
 | `lib/auth-helpers.ts` | `requireAuth`, `requireApprovedAuth` (enforces approval + OTP freshness), `AuthUser` shape with role flags |
@@ -108,17 +109,58 @@ Use **drizzle-kit** + a small node script that applies the generated SQL with th
 # 1. Edit lib/db/schema.ts
 # 2. Generate migration
 npm run db:generate
-# 3. Apply manually (the project doesn't use drizzle-kit migrate directly because
-#    DATABASE_URL isn't loaded automatically by it). Use a node one-liner:
-set -a; source .env.local; set +a
+# 3. Apply manually. DATABASE_URL contains & characters that break shell source;
+#    load it inside the node script with dotenv instead:
 node -e "
+  require('dotenv').config({ path: '.env.local' });
   const { Client } = require('pg');
-  // ... run the ALTER/CREATE statements ...
-  // ... then INSERT INTO drizzle.__drizzle_migrations VALUES (hash, Date.now()) ...
+  (async () => {
+    const c = new Client({ connectionString: process.env.DATABASE_URL });
+    await c.connect();
+    await c.query('ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...');
+    // Record migration hash so drizzle-kit won't reapply it
+    const { createHash } = require('crypto');
+    const { readFileSync } = require('fs');
+    const sql = readFileSync('drizzle/####_*.sql', 'utf8');
+    const hash = createHash('sha256').update(sql).digest('hex');
+    await c.query('INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES (\$1, \$2)', [hash, Date.now()]);
+    console.log('applied');
+    await c.end();
+  })().catch(e => { console.error(e.message); process.exit(1); });
 "
 ```
 
+**Important:** `set -a; source .env.local; set +a` fails when `DATABASE_URL` contains `&` (Neon connection strings always do). Always use `require('dotenv').config()` inside the node script instead.
+
 The legacy `scripts/migrate.mjs` is no longer used.
+
+### Applying migrations to multiple Neon branches
+
+When a migration is applied to the dev branch but not yet to main (or vice versa), apply it to the other branch by overriding `DATABASE_URL` inline:
+
+```bash
+DATABASE_URL="postgresql://..." node -e "require('dotenv').config(); ..."
+# Or run the migration node one-liner with the target branch URL set in the environment
+```
+
+Migration `0009_noisy_nighthawk.sql` was applied to both branches on 2026-06-06:
+```sql
+ALTER TABLE "platform_dues_targets" ADD COLUMN "dues_due_date" timestamp with time zone;
+ALTER TABLE "platform_dues_targets" ADD COLUMN "renewal_due_date" timestamp with time zone;
+ALTER TABLE "platform_dues_targets" ADD COLUMN "one_on_one_due_date" timestamp with time zone;
+```
+
+### Schema drift: user-id columns must be `text`, not `uuid` (ADR-012)
+
+BetterAuth `users.id` is **text** (short random strings, not UUIDs). Every column that stores a user id must be `text`: `audit_logs.user_id`, `resource_versions.updated_by_user_id`, `resources.uploaded_by`, `*_by`, etc. The Drizzle schema already declares these correctly, but the live DBs had **drifted to `uuid`**, which broke writes with `invalid input syntax for type uuid` (Postgres `22P02`) on any non-UUID user id — i.e. for every user.
+
+`drizzle-kit generate` does **not** catch this — it diffs the schema against its snapshot, not the live DB. Fix drift in-place on **both** branches (no schema edit / migration file needed):
+
+```sql
+ALTER TABLE <table> ALTER COLUMN <col> TYPE text USING <col>::text;
+```
+
+Applied 2026-07-06 to both branches: `audit_logs.user_id` and `resource_versions.updated_by_user_id` (both were `uuid`, now `text`). **Diagnostic:** a `22P02` on a `user_id`/`*_by` column means column-type drift — fix the column type, never the failing user row.
 
 ## Tailwind v4 Setup
 - PostCSS config: `postcss.config.js` — must be `.js` (CJS), NOT `.mjs` (Turbopack ignores `.mjs`)
@@ -200,6 +242,42 @@ This prevents 6-digit OTP brute-forcing (max 3 sends/minute, max 10 verify attem
 
 This prevents fake-email auth bypass attacks.
 
+## Neon Branches
+
+| Branch | Host | Purpose |
+|---|---|---|
+| `development` | `ep-icy-rain-ah1oudbm-pooler.c-3.us-east-1.aws.neon.tech` | Local dev + team testing |
+| `main` | `ep-holy-resonance-ahbkvl60-pooler.c-3.us-east-1.aws.neon.tech` | Production (Vercel) |
+
+Both branches were truncated and re-seeded on 2026-06-06 with identical 2025+2026 data. The `development` branch is referenced in `.env.local`; the `main` branch URL is in `.env.vercel`.
+
+When applying a schema migration, apply it to **both** branches. It is easy to miss the second branch — check both after any `drizzle-kit generate` run.
+
+## Org Name Convention
+
+Organization names are stored in **short form** — the colloquial name without the legal suffix. See ADR-010.
+
+| Stored (correct) | Do NOT store |
+|---|---|
+| `alpha Kappa Delta Phi` | `alpha Kappa Delta Phi International Sorority, Inc.` |
+| `Delta Epsilon Psi` | `Delta Epsilon Psi National Fraternity, Inc.` |
+| `National APIDA Panhellenic Association` | (no change — no suffix to strip) |
+
+`organization_name` is used as a text FK throughout the schema. A format mismatch causes FK violations on insert. Any incoming data (CSV, webhook, manual entry) must be normalized to the short form before writing.
+
+## NAPA Board/Director — Null `organizationName` in Session
+
+NAPA Board and Director users promoted manually (via `/admin/users` role grant after signup) may have `organizationName = null` in their BetterAuth session token, even though the DB row has the correct org. This happens because the session token is written at signup, before promotion.
+
+**Pattern:** wherever client code needs the org name for a NAPA admin, fall back to `NAPA_ORG_NAME`:
+
+```ts
+const isNapaAdmin = user?.role === 'napaBoard' || user?.role === 'napaDirector'
+const organizationName = user?.organizationName ?? (isNapaAdmin ? NAPA_ORG_NAME : null)
+```
+
+Applied in: `app/(dashboard)/page.tsx` and `app/(dashboard)/admin/org-users/page.tsx`.
+
 ## Conventions
 - **API routes**: always under `app/api/v2/`. All protected routes must call `requireApprovedAuth()` at the top (not the weaker `requireAuth()`). Cast `session.user` to `ExtendedUser` (or `SessionUser`) since BetterAuth's default user type is missing our custom fields. Map error messages to HTTP status: `'Unauthorized'` → 401, everything else → 403.
 - **File icons**: `@phosphor-icons/react` with `weight="duotone"`; look up via `FILE_ICON_MAP` in `lib/file-icons.ts`. All other icons use `lucide-react`.
@@ -210,6 +288,10 @@ This prevents fake-email auth bypass attacks.
 - **Tables**: every list page uses `<Table>` wrapped in `<div className="rounded-lg border bg-card overflow-hidden">`. Pagination via `<TablePagination>` from `components/ui/table-pagination.tsx` when there are many rows. The Resources table uses manual `useState` sort; admin tables get optional pagination only.
 - **Date-only fields**: meeting dates and dues payment dates are date-only timestamps. Render with `formatDateOnly()` from `lib/format.ts` (UTC-safe). Real timestamps (createdAt, etc.) use `toLocaleDateString()` normally.
 - **Org URLs**: `/org/<slug>` where `<slug>` is `orgSlug(orgName)`. The legacy `/admin/organizations/[name]` path is a redirect to the new route.
+- **Responsive layout (ADR-011)**: headers stack with `flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`; button groups add `flex-wrap`. `DialogContent` width caps are **always** `sm:max-w-*`, never bare `max-w-*` (a bare cap breaks the mobile gutter). Tables cap+wrap the one flexible text column (`max-w-[200px] sm:max-w-sm md:max-w-md whitespace-normal` + `line-clamp-1 break-words`) and hide low-priority columns with `hidden sm:table-cell` / `hidden md:table-cell` on both `TableHead` and `TableCell`. The mobile nav hamburger is the `SidebarTrigger` in `TopNav` (`md:hidden`); desktop uses the sidebar rail.
+- **Role / status badges**: role pills use the color scheme NAPA Board = `bg-primary/10 text-primary` (gold), NAPA Director = purple, Admin = sky, Member/User = muted. Reuse `roleSelectValue()` in `OrgUsersClient.tsx` (or the inline `getRoleBadge` in `/admin/users`) so the pill always matches the edit dropdown. Status pills: Approved = green, Pending = yellow, Rejected/Banned = red. The "NEW" resource pill and sidebar count badge use `bg-primary text-primary-foreground` (gold).
+- **`/admin/users` (All Users)** now **includes** NAPA-org and Board/Director users; they are always sorted to the bottom of the list (NAPA org sinks last regardless of sort field/direction). Do not re-add a `!== NAPA_ORG_NAME` exclusion.
+- **Meetings page** has a **year dropdown** that filters the table, CSV export, and empty state. Years are derived from the data plus the current year (`new Date().getFullYear()`), newest first.
 
 ## Org Health Scoring
 5 dimensions, each 0–20 pts. Baseline 16 per dimension when nothing is measured/recorded yet, so an empty org starts at 80. Full completion brings each to 20 (max 100). See ADR-006.
@@ -230,7 +312,22 @@ Future-dated meetings show in the `X/12` display but don't affect the score unti
 - `lib/services-drizzle/domain-whitelist.ts` — deleted along with the domain whitelist feature
 - `/admin/organizations/[name]/page.tsx` — now a redirect stub; real page is `/org/[slug]`
 
+## Platform Due Dates
+
+`platform_dues_targets` now has three nullable timestamp columns (migration `0009`, added 2026-06-06):
+- `dues_due_date` — when dues must be paid by (2026: Oct 15)
+- `renewal_due_date` — when renewal + cert must be completed (2026: Jun 14)
+- `one_on_one_due_date` — when the 1×1 meeting must occur (2026: Sep 30)
+
+These are set per-year by NAPA Board. 2025 has no due dates set (nulls). 2026 has all three populated.
+
+UI for editing due dates on the org-health page is **not yet built** — planned for the next session.
+
 ## Open Work
+- **Forms integration** (Fillout + Google Forms): full plan written in `.claude/plans/floofy-petting-dusk.md`. 9 new files + 4 modified. Not started yet.
+- **Due date UI on org-health page**: Board should be able to set/edit `dues_due_date`, `renewal_due_date`, `one_on_one_due_date` per year from the portal. Schema columns exist; API and UI not built.
+- **QBO integration**: Read-only automated sync of invoices/payments from NAPA's single QuickBooks Online account. NAPA-side only.
 - File preview for office docs (PDFs already open in-browser via signed URL; .docx/.xlsx/.pptx would need an Office Online Viewer wrapper)
-- Mobile-specific table layout for narrow screens
 - Per-meeting CSV attendance import on the meeting detail page
+
+Done 2026-07-06 (no longer open): mobile/responsive pass across all pages (ADR-011); Org Users status column; NAPA users included in All Users; meetings year filter; user-id column drift fixed (ADR-012).

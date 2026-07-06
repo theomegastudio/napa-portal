@@ -31,11 +31,11 @@ Add your table definition to `lib/db/schema.ts` using Drizzle's schema builder. 
 npm run db:generate
 ```
 
-That writes `drizzle/####_*.sql`. Apply it manually using a node one-liner (drizzle-kit's own `migrate` doesn't pick up `DATABASE_URL` automatically):
+That writes `drizzle/####_*.sql`. Apply it manually using a node one-liner:
 
 ```bash
-set -a; source .env.local; set +a
 node -e "
+require('dotenv').config({ path: '.env.local' });
 const { Client } = require('pg');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -43,17 +43,29 @@ const fs = require('fs');
   const c = new Client({ connectionString: process.env.DATABASE_URL });
   await c.connect();
   // Run the ALTER/CREATE statements from drizzle/####_*.sql here.
-  // Always use IF NOT EXISTS / IF NOT EXISTS guards so it's idempotent.
+  // Always use IF NOT EXISTS guards so it's idempotent.
   await c.query('ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...');
   // Record the migration so drizzle-kit doesn't reapply it.
   const hash = crypto.createHash('sha256')
     .update(fs.readFileSync('drizzle/####_*.sql', 'utf8'))
     .digest('hex');
-  await c.query('INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES (\$1, \$2)', [hash, Date.now()]);
+  await c.query(
+    'INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES (\$1, \$2)',
+    [hash, Date.now()]
+  );
   console.log('applied');
   await c.end();
 })().catch(e => { console.error(e.message); process.exit(1); });
 "
+```
+
+> **Do NOT use `set -a; source .env.local; set +a`** — Neon's `DATABASE_URL` contains `&` characters that break shell parsing. Always load env with `require('dotenv').config()` inside the node script.
+
+**Apply to both Neon branches.** The project has two branches (`development` and `main`). After applying a migration to the dev branch, apply it to main too by overriding `DATABASE_URL`:
+
+```bash
+DATABASE_URL="postgresql://neondb_owner:...@ep-holy-resonance...neon.tech/neondb?sslmode=require" \
+  node -e "require('dotenv').config(); ..."
 ```
 
 The old `scripts/migrate.mjs` runner is gone — don't reach for it.
@@ -143,7 +155,24 @@ Instead, follow the flow in [Adding a New Feature - Migration](#2-migration). Th
 3. Apply the SQL via the node `pg` one-liner above, with `IF NOT EXISTS` guards
 4. Insert the migration hash into `drizzle.__drizzle_migrations` so drizzle-kit knows it's been applied
 
-All statements must be idempotent.
+All statements must be idempotent. **Apply every change to BOTH Neon branches** (`development` and `main`) — see CLAUDE.md "Neon Branches".
+
+### Watch for schema drift (ADR-012)
+
+`drizzle-kit generate` diffs the schema against its **snapshot**, not the live DB, so a column that silently differs from the live database produces no migration and is invisible until a query hits it. The known instance: **user-id columns must be `text`, not `uuid`** (BetterAuth `users.id` is text, not a UUID). If you see `invalid input syntax for type uuid` (Postgres `22P02`) on a `user_id` / `*_by` / `uploaded_by` column, the column has drifted — fix the **column type**, never the failing user row:
+
+```sql
+ALTER TABLE <table> ALTER COLUMN <col> TYPE text USING <col>::text;  -- apply to both branches
+```
+
+Audit for this class of drift:
+
+```sql
+SELECT table_name, column_name, data_type FROM information_schema.columns
+WHERE table_schema='public'
+  AND (column_name LIKE '%user_id%' OR column_name LIKE '%uploaded_by%' OR column_name LIKE '%\_by')
+  AND data_type='uuid';  -- expect zero rows
+```
 
 ---
 
@@ -159,6 +188,8 @@ Base UI's Dialog API differs from Radix:
 - `DialogTrigger` accepts a `render` prop (not `asChild`)
 
 Do not use `Sheet` for forms — Sheet is reserved for non-form side panels only.
+
+**Width caps must be `sm:`-prefixed.** Write `<DialogContent className="sm:max-w-2xl ...">`, never a bare `max-w-2xl`. A bare cap wins over the base dialog's mobile guard `max-w-[calc(100%-2rem)]` via tailwind-merge and makes the dialog full-bleed (no side gutters) on phones. This is a hard rule (ADR-011).
 
 ### `asChild` → `render`
 
@@ -181,6 +212,39 @@ The shadcn `Button` wrapper auto-sets `nativeButton={false}` when `render` is pr
 Every list page wraps `<Table>` in `<div className="rounded-lg border bg-card overflow-hidden">`. Optionally add `<TablePagination>` from `components/ui/table-pagination.tsx` to get a Prev/Next footer with clear disabled state.
 
 Sort state is plain `useState` (we don't use TanStack). Filter state resets `page` to 0 on change.
+
+**Responsiveness (ADR-011).** `TableCell` defaults to `whitespace-nowrap`, so a long value in a flexible column will expand the table past the viewport and hide other columns behind the horizontal scrollbar. For the one flexible text column:
+
+```tsx
+<TableCell className="max-w-[200px] sm:max-w-sm md:max-w-md whitespace-normal">
+  <button className="... line-clamp-1 break-words">{row.title}</button>
+  {row.description && <p className="... line-clamp-1 break-words">{row.description}</p>}
+</TableCell>
+```
+
+Hide low-priority columns on narrow screens by putting the SAME responsive class on both the `TableHead` and its `TableCell` — e.g. Organization `hidden sm:table-cell`, Type/Added `hidden md:table-cell`. Hidden fields must still be reachable in the row's detail dialog. `ResourceTable.tsx` is the reference implementation.
+
+### Responsive headers & toolbars (ADR-011)
+
+Page headers with a title + action buttons must stack on mobile, and multi-button groups must wrap:
+
+```tsx
+<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+  <div>
+    <h2 className="text-lg font-semibold">Title</h2>
+    <p className="text-sm text-muted-foreground">subtitle</p>
+  </div>
+  <div className="flex flex-wrap items-center gap-2">
+    {/* year Select, Export, Add, … */}
+  </div>
+</div>
+```
+
+When a long title sits next to actions in a single row, give the title `min-w-0` (so it can shrink/truncate) and the button group `shrink-0`. The dashboard `main` uses `p-4 sm:p-6`; don't hardcode `p-6`. The mobile nav hamburger (`SidebarTrigger` in `TopNav`, `md:hidden`) is what opens the off-canvas sidebar — a layout without it is unusable on mobile.
+
+### Role & status badges
+
+Role pills follow one color scheme everywhere (Org Users and All Users): NAPA Board = `bg-primary/10 text-primary` (gold), NAPA Director = `bg-purple-100 text-purple-800`, Admin = `bg-sky-100 text-sky-800`, Member/User = `bg-muted text-muted-foreground`. Derive the pill from `roleSelectValue(role, isAdmin)` (in `OrgUsersClient.tsx`) so it always matches the edit dialog's role dropdown; `/admin/users` has an equivalent inline `getRoleBadge`. Status pills: Approved = green, Pending = yellow, Rejected/Banned = red. The "NEW" resource pill and sidebar count badge are `bg-primary text-primary-foreground` (gold) — do not use `bg-blue-*` for these.
 
 Date-only fields (meeting date, dues payment date) render through `formatDateOnly()` from `lib/format.ts` — a thin wrapper around `toLocaleDateString({ timeZone: 'UTC' })` — to avoid the off-by-one bug in negative-offset timezones.
 
@@ -242,6 +306,7 @@ If you need a new permission rule, add it there — do not scatter logic across 
 - `canViewOrgHealth`: NAPA Board always; Director only if their `canViewOrgHealth` flag is true. The flag is editable on `/admin/users` by Board.
 - NAPA role grants (`napaBoard`, `napaDirector`) can only be assigned in the **NAPA org** (`National APIDA Panhellenic Association`). Both `/api/v2/admin/users/[userId]` and `/api/v2/members` POST/PATCH enforce this server-side.
 - `canViewResource`, `canEditResource`, `canDeleteResource` enforce cross-org isolation: non-NAPA users can only access their own org's resources, even if they have `isAdmin = true`. See ADR-009.
+- **User approvals are org-scoped in the service layer, not via `canApproveUsers`.** `lib/services-drizzle/approvals.ts` does its own checks: `getPendingApprovals()` filters org admins to their own org (NAPA admins see all), and `approveUser`/`rejectUser` throw on a cross-org target and force the first-user-in-org through NAPA. The `canApproveUsers` helper in `permissions.ts` is currently **unused dead code** — if you wire it in, remember it is *not* org-scoped on its own; the route/service still owns org-scoping. Consider deleting it or routing the approvals endpoints through it (scoped) to keep the permission model single-sourced.
 
 ### Permission Enforcement Pattern
 
@@ -397,6 +462,42 @@ This project uses Tailwind v4. Several things work differently from v3:
 
 ---
 
+## Org Names
+
+Organization names are stored as a **text primary key** on the `organizations` table, referenced as a FK string by every other org-scoped table. The format is the **short colloquial name** — no legal suffix. See ADR-010.
+
+```
+✅  alpha Kappa Delta Phi
+✅  Delta Epsilon Psi
+✅  National APIDA Panhellenic Association   ← NAPA org is unchanged
+
+❌  alpha Kappa Delta Phi International Sorority, Inc.
+❌  Delta Epsilon Psi National Fraternity, Inc.
+```
+
+If you're importing data from an external source (CSV, webhook, API) that uses full legal names, strip the suffix before inserting. A mismatch causes FK violations on child-table inserts, which surface as a Postgres error at runtime.
+
+The full set of suffixes to strip:
+- `International Fraternity, Inc.`
+- `International Sorority, Inc.`
+- `National Fraternity, Inc.`
+- `National Sorority, Inc.`
+
+## NAPA Board/Director — Null `organizationName` in Session
+
+NAPA Board and Director users who were promoted via `/admin/users` (after their initial signup) may have `organizationName = null` in their BetterAuth session token. The token is minted at signup, before the role promotion happens.
+
+Whenever a page or component needs the user's org name, apply this fallback:
+
+```ts
+import { NAPA_ORG_NAME } from '@/lib/constants'
+
+const isNapaAdmin = user?.role === 'napaBoard' || user?.role === 'napaDirector'
+const organizationName = user?.organizationName ?? (isNapaAdmin ? NAPA_ORG_NAME : null)
+```
+
+Do not call API routes with `organizationName = null` — they will reject or return empty results. The fallback handles the gap until the user refreshes their session.
+
 ## Org Health
 
 Five-dimension engagement score (0–100). Each dimension has a 16-point baseline so empty orgs start at 80, not 0. Completion brings each dimension to 20. See ADR-006 for the rationale and exact math.
@@ -404,6 +505,18 @@ Five-dimension engagement score (0–100). Each dimension has a 16-point baselin
 ### Annual dues target
 
 The Board sets one platform-wide annual dues target per year via the strip at the top of `/admin/org-health`. Stored in `platform_dues_targets`. Per-org overrides exist in `dues_records.amount_cents` — when present they override the platform target for that org/year.
+
+### Due dates (added 2026-06-06)
+
+`platform_dues_targets` has three nullable timestamp columns for Board-visible deadlines:
+
+| Column | Purpose | 2025 | 2026 |
+|---|---|---|---|
+| `dues_due_date` | When dues must be paid | null | 2026-10-15 |
+| `renewal_due_date` | Renewal + cert deadline | null | 2026-06-14 |
+| `one_on_one_due_date` | 1×1 meeting deadline | null | 2026-09-30 |
+
+These are read-only in the current UI — Board sets them manually via the `platform_dues_targets` table. A UI to edit them on the Org Health page is planned but not yet built. Migration: `drizzle/0009_noisy_nighthawk.sql`.
 
 ### NAPAAM scoring
 
@@ -443,3 +556,33 @@ npx tsc --noEmit            # type-check
 ```
 
 Environment variables required: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`. Copy `.env.local.example` to `.env.local` to seed.
+
+### Seeding data
+
+```bash
+node scripts/seed.mjs
+```
+
+The seed script (`scripts/seed.mjs`) is idempotent — safe to run multiple times against a branch that already has data. It reads `.env.local` automatically. To target a different Neon branch:
+
+```bash
+DATABASE_URL="postgresql://..." node scripts/seed.mjs
+```
+
+The script covers: all 19 orgs (18 members + NAPA), `finance@napahq.org` as napaBoard, 2025 and 2026 monthly meetings + NAPAAM, full 2025 attendance, Jan–Apr 2026 attendance, platform dues targets with due dates, 2025 dues records/payments, and 2025 compliance flags.
+
+**Tables without a unique constraint** (`meeting_attendance`, `dues_records`, `org_yearly_compliance`) use a SELECT-then-INSERT pattern instead of `ON CONFLICT`:
+
+```js
+const { rows } = await db.query(
+  `SELECT id FROM meeting_attendance WHERE meeting_id=$1 AND organization_name=$2`,
+  [meetingId, orgName]
+)
+if (rows.length > 0) {
+  await db.query(`UPDATE meeting_attendance SET ... WHERE id=$1`, [rows[0].id])
+} else {
+  await db.query(`INSERT INTO meeting_attendance ...`, [...])
+}
+```
+
+Do not add `ON CONFLICT` to these tables without first creating the corresponding unique index in a migration.

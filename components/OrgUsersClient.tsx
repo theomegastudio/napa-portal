@@ -64,6 +64,12 @@ const ROLE_BADGE_STYLES: Record<NapaRole, string> = {
   napaDirector: 'bg-purple-100 text-purple-800',
 }
 
+/**
+ * Read-only role pill for a member row. Resolves the effective role via
+ * {@link roleSelectValue} (so it always matches the edit dialog's dropdown) and
+ * renders it with the shared color scheme: Board = gold/primary, Director =
+ * purple, Admin = sky, User/Member = muted. Elevated roles get a shield icon.
+ */
 function RoleBadge({ role, isAdmin }: { role?: string | null; isAdmin: boolean }) {
   const key = roleSelectValue(role, isAdmin)
   return (
@@ -74,6 +80,11 @@ function RoleBadge({ role, isAdmin }: { role?: string | null; isAdmin: boolean }
   )
 }
 
+/**
+ * Read-only approval-status pill for a member row. `banned` wins over
+ * `status`; otherwise maps approvalStatus → color (Approved green, Pending
+ * yellow, Rejected red), falling back to a muted pill for unknown values.
+ */
 function StatusBadge({ status, banned }: { status?: string | null; banned?: boolean }) {
   const base = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium'
   if (banned) return <span className={`${base} bg-red-100 text-red-800`}>Banned</span>
