@@ -207,7 +207,7 @@ export default function ResourceTable({
                         </Link>
                       )}
                       {lastViewed != null && new Date(resource.createdAt).getTime() > lastViewed && (
-                        <Badge className="h-4 px-1.5 text-[10px] bg-blue-600 text-white border-0 shrink-0">NEW</Badge>
+                        <Badge className="h-4 px-1.5 text-[10px] bg-primary text-primary-foreground border-0 shrink-0">NEW</Badge>
                       )}
                     </div>
                     {resource.description && (

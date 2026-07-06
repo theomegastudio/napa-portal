@@ -109,12 +109,8 @@ export default function AdminUsersPage() {
   }, [])
 
   useEffect(() => {
-    // Hide NAPA staff from this page entirely (Board / Director / NAPA-org users)
-    let filtered = users.filter(u =>
-      u.organizationName !== NAPA_ORG_NAME &&
-      u.role !== 'napaBoard' &&
-      u.role !== 'napaDirector',
-    )
+    // NAPA org members are included and sorted to the bottom (see comparator).
+    let filtered = [...users]
     if (searchQuery) {
       filtered = filtered.filter(u =>
         u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -128,6 +124,10 @@ export default function AdminUsersPage() {
       else filtered = filtered.filter(u => u.approvalStatus === selectedStatus && !u.banned)
     }
     const sorted = [...filtered].sort((a, b) => {
+      // NAPA org always sinks to the bottom regardless of sort field/direction.
+      const aNapa = a.organizationName === NAPA_ORG_NAME
+      const bNapa = b.organizationName === NAPA_ORG_NAME
+      if (aNapa !== bNapa) return aNapa ? 1 : -1
       const av = (a[sortField] ?? '') as string
       const bv = (b[sortField] ?? '') as string
       const cmp = sortField === 'createdAt'
@@ -273,6 +273,14 @@ export default function AdminUsersPage() {
     }
   }
 
+  const getRoleBadge = (user: User) => {
+    const base = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium'
+    if (user.role === 'napaBoard') return <span className={`${base} bg-primary/10 text-primary`}><Shield className="h-3 w-3 mr-1" />NAPA Board</span>
+    if (user.role === 'napaDirector') return <span className={`${base} bg-purple-100 text-purple-800`}><Shield className="h-3 w-3 mr-1" />NAPA Director</span>
+    if (user.isAdmin) return <span className={`${base} bg-sky-100 text-sky-800`}><Shield className="h-3 w-3 mr-1" />Admin</span>
+    return <span className={`${base} bg-muted text-muted-foreground`}>Member</span>
+  }
+
   const getStatusBadge = (user: User) => {
     if (user.banned) return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800"><Ban className="h-3 w-3 mr-1" />Banned</span>
     switch (user.approvalStatus) {
@@ -290,7 +298,7 @@ export default function AdminUsersPage() {
   return (
     <>
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold">All Users</h2>
             <p className="text-sm text-muted-foreground">Showing {filteredUsers.length} of {users.length} users</p>
@@ -312,7 +320,6 @@ export default function AdminUsersPage() {
             <SelectContent>
               <SelectItem value="all">All Organizations</SelectItem>
               {organizations
-                .filter(org => org.organizationName !== NAPA_ORG_NAME)
                 .map((org) => <SelectItem key={org.id} value={org.organizationName}>{org.organizationName}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -379,13 +386,7 @@ export default function AdminUsersPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{user.organizationName || <span className="italic">Not set</span>}</TableCell>
-                      <TableCell>
-                        {user.isAdmin ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary"><Shield className="h-3 w-3 mr-1" />Admin</span>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">Member</span>
-                        )}
-                      </TableCell>
+                      <TableCell>{getRoleBadge(user)}</TableCell>
                       <TableCell>{getStatusBadge(user)}</TableCell>
                       <TableCell className="text-muted-foreground">{new Date(user.createdAt).toLocaleDateString()}</TableCell>
                       <TableCell className="text-right">

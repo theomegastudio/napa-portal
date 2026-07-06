@@ -50,6 +50,7 @@ export default function MeetingsPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [year, setYear] = useState<string>(String(new Date().getFullYear()))
 
   const [form, setForm] = useState({
     title: '',
@@ -80,7 +81,7 @@ export default function MeetingsPage() {
 
   const exportCsv = () => {
     const header = 'Title,Type,Date,Notes'
-    const rows = meetings.map(m => {
+    const rows = meetings.filter(m => m.meetingDate.slice(0, 4) === year).map(m => {
       const cells = [m.title, m.meetingType, m.meetingDate.slice(0, 10), m.notes ?? '']
       return cells.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')
     })
@@ -89,7 +90,7 @@ export default function MeetingsPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `meetings-${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `meetings-${year}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -170,6 +171,13 @@ export default function MeetingsPage() {
   const attendeesFor = (m: Meeting) =>
     m.attendance.filter(a => a.attended && a.organizationName !== NAPA_ORG_NAME).length
 
+  // Years present in the data, plus the current year, newest first.
+  const availableYears = Array.from(
+    new Set([String(new Date().getFullYear()), ...meetings.map(m => m.meetingDate.slice(0, 4))])
+  ).sort((a, b) => Number(b) - Number(a))
+
+  const displayed = meetings.filter(m => m.meetingDate.slice(0, 4) === year)
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -178,6 +186,12 @@ export default function MeetingsPage() {
           <p className="text-sm text-muted-foreground">Monthly meetings, NAPAAM, and other gatherings. Click a row to manage attendance.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Select value={year} onValueChange={setYear}>
+            <SelectTrigger className="w-28"><span>{year}</span></SelectTrigger>
+            <SelectContent>
+              {availableYears.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Button variant="outline" onClick={exportCsv}>
             <FileDown className="h-4 w-4 mr-2" />Export CSV
           </Button>
@@ -194,11 +208,13 @@ export default function MeetingsPage() {
         <div className="space-y-2">
           {[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full" />)}
         </div>
-      ) : meetings.length === 0 ? (
+      ) : displayed.length === 0 ? (
         <div className="text-center py-16 border rounded-lg">
           <CalendarPlus className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-          <h3 className="font-semibold mb-1">No meetings yet</h3>
-          <p className="text-sm text-muted-foreground">Create a meeting or import a CSV to get started.</p>
+          <h3 className="font-semibold mb-1">No meetings in {year}</h3>
+          <p className="text-sm text-muted-foreground">
+            {meetings.length === 0 ? 'Create a meeting or import a CSV to get started.' : 'Try selecting a different year, or add a meeting.'}
+          </p>
         </div>
       ) : (
         <div className="rounded-lg border bg-card overflow-hidden">
@@ -212,7 +228,7 @@ export default function MeetingsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {meetings.map(m => {
+              {displayed.map(m => {
                 const attendees = attendeesFor(m)
                 const isLow = (m.meetingType === 'monthly' || m.meetingType === 'annual') && attendees < MIN_ATTENDEES
                 return (

@@ -94,7 +94,7 @@ function NavLink({ item, pathname, badge }: { item: NavItem; pathname: string; b
         <item.icon className="h-4 w-4" />
         <span>{item.title}</span>
         {badge !== undefined && badge > 0 && (
-          <Badge className="ml-auto h-4 min-w-4 px-1 text-[10px] tabular-nums bg-blue-600 text-white border-0">
+          <Badge className="ml-auto h-4 min-w-4 px-1 text-[10px] tabular-nums bg-primary text-primary-foreground border-0">
             {badge}
           </Badge>
         )}

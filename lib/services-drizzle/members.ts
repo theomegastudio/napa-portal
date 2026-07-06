@@ -31,6 +31,8 @@ export async function getOrgMembers(
       organizationName: true,
       isAdmin: true,
       role: true,
+      approvalStatus: true,
+      banned: true,
       createdAt: true,
     },
     orderBy: desc(users.createdAt),

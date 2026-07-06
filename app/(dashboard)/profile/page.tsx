@@ -114,7 +114,7 @@ export default function ProfilePage() {
             <div className="flex-1">
               <h2 className="text-xl font-semibold">{user.name || 'User'}</h2>
               <p className="text-sm text-muted-foreground">{user.email}</p>
-              <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm text-muted-foreground">
                 <div className="flex items-center gap-1">
                   <Building2 className="h-4 w-4" />
                   {user.organizationName || 'No organization'}

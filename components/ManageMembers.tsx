@@ -151,7 +151,7 @@ export default function ManageMembers({ organizationName }: ManageMembersProps) 
                   key={member.id}
                   className="flex items-center justify-between p-3 rounded-lg border"
                 >
-                  <p className="text-sm font-medium">{member.email}</p>
+                  <p className="text-sm font-medium truncate mr-2 min-w-0">{member.email}</p>
                   {member.isAdmin && (
                     <Badge variant="secondary" className="text-xs">
                       <Shield className="mr-1 h-3 w-3" />

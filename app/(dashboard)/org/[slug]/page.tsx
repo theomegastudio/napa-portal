@@ -200,7 +200,7 @@ export default function OrgDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Button variant="ghost" size="sm" render={<Link href={backHref} />}>
           <ChevronLeft className="h-4 w-4" /> {backLabel}
         </Button>
@@ -241,7 +241,7 @@ export default function OrgDetailPage() {
       </div>
 
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-semibold">Leaders &amp; contacts <span className="font-normal text-sm text-muted-foreground">({year})</span></h3>
           {permissions.canEditLeaders && (
             <Button size="sm" onClick={openAddLeader}><Plus className="h-4 w-4 mr-1" />Add</Button>
@@ -341,7 +341,7 @@ export default function OrgDetailPage() {
                 <Label htmlFor="ln">Name *</Label>
                 <Input id="ln" value={leaderForm.name} onChange={(e) => setLeaderForm({ ...leaderForm, name: e.target.value })} required />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="lr">Role</Label>
                   <Input id="lr" value={leaderForm.role} onChange={(e) => setLeaderForm({ ...leaderForm, role: e.target.value })} placeholder="President" />

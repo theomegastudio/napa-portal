@@ -42,5 +42,7 @@ export interface Organization {
     organizationName: string | null
     isAdmin: boolean
     role?: string
+    approvalStatus?: string
+    banned?: boolean
     createdAt: string
   }

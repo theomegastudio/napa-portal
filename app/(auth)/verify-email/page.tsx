@@ -160,7 +160,7 @@ export default function VerifyEmailPage() {
                     value={digit}
                     onChange={(e) => handleCodeChange(index, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(index, e)}
-                    className="w-12 h-14 text-center text-xl font-semibold"
+                    className="w-10 h-12 sm:w-12 sm:h-14 text-center text-lg sm:text-xl font-semibold"
                     disabled={isVerifying}
                     autoFocus={index === 0}
                   />

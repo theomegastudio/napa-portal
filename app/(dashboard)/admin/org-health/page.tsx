@@ -485,12 +485,12 @@ function DuesTargetStrip({
   }
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2 text-sm">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card px-3 py-2 text-sm">
       <DollarSign className="h-4 w-4 text-muted-foreground" />
       <div className="flex-1">
         <span className="font-medium">Annual Dues for {year}:</span>{' '}
         {editing ? (
-          <span className="inline-flex items-center gap-2">
+          <span className="inline-flex flex-wrap items-center gap-2">
             <Input
               type="number"
               min={0}

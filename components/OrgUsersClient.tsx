@@ -74,6 +74,17 @@ function RoleBadge({ role, isAdmin }: { role?: string | null; isAdmin: boolean }
   )
 }
 
+function StatusBadge({ status, banned }: { status?: string | null; banned?: boolean }) {
+  const base = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium'
+  if (banned) return <span className={`${base} bg-red-100 text-red-800`}>Banned</span>
+  switch (status) {
+    case 'approved': return <span className={`${base} bg-green-100 text-green-800`}>Approved</span>
+    case 'pending': return <span className={`${base} bg-yellow-100 text-yellow-800`}>Pending</span>
+    case 'rejected': return <span className={`${base} bg-red-100 text-red-700`}>Rejected</span>
+    default: return <span className={`${base} bg-muted text-muted-foreground`}>{status ?? 'Unknown'}</span>
+  }
+}
+
 export default function OrgUsersClient({ organizationName, currentUserId }: OrgUsersClientProps) {
   const isNapaOrg = organizationName === NAPA_ORG_NAME
   const [members, setMembers] = useState<Member[]>([])
@@ -252,7 +263,7 @@ export default function OrgUsersClient({ organizationName, currentUserId }: OrgU
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold">Org Users</h2>
           <p className="text-sm text-muted-foreground">
@@ -297,6 +308,7 @@ export default function OrgUsersClient({ organizationName, currentUserId }: OrgU
                   <TableRow>
                     <TableHead>Email</TableHead>
                     <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Joined</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -314,6 +326,9 @@ export default function OrgUsersClient({ organizationName, currentUserId }: OrgU
                       </TableCell>
                       <TableCell>
                         <RoleBadge role={member.role} isAdmin={member.isAdmin} />
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={member.approvalStatus} banned={member.banned} />
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {member.createdAt ? new Date(member.createdAt).toLocaleDateString() : 'N/A'}

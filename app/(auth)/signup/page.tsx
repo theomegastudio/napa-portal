@@ -292,7 +292,7 @@ function SignUpForm() {
       </div>
 
       <Dialog open={termsDialogOpen} onOpenChange={setTermsDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl">Terms of Service</DialogTitle>
             <p className="text-sm text-muted-foreground">Effective Date: February 1, 2026</p>
@@ -315,7 +315,7 @@ function SignUpForm() {
       </Dialog>
 
       <Dialog open={privacyDialogOpen} onOpenChange={setPrivacyDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl">Privacy Policy</DialogTitle>
             <p className="text-sm text-muted-foreground">Effective Date: February 1, 2026</p>
