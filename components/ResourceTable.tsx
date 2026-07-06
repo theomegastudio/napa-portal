@@ -148,17 +148,17 @@ export default function ResourceTable({
                 Title <SortIcon field="title" sortField={sortField} sortDir={sortDir} />
               </button>
             </TableHead>
-            <TableHead className="w-28">
+            <TableHead className="w-28 hidden md:table-cell">
               <button className="flex items-center hover:text-foreground" onClick={() => toggleSort('resourceType')}>
                 Type <SortIcon field="resourceType" sortField={sortField} sortDir={sortDir} />
               </button>
             </TableHead>
-            <TableHead>
+            <TableHead className="hidden sm:table-cell">
               <button className="flex items-center hover:text-foreground" onClick={() => toggleSort('organization')}>
                 Organization <SortIcon field="organization" sortField={sortField} sortDir={sortDir} />
               </button>
             </TableHead>
-            <TableHead className="w-28">
+            <TableHead className="w-28 hidden md:table-cell">
               <button className="flex items-center hover:text-foreground" onClick={() => toggleSort('createdAt')}>
                 Added <SortIcon field="createdAt" sortField={sortField} sortDir={sortDir} />
               </button>
@@ -188,44 +188,44 @@ export default function ResourceTable({
                     <File className="h-5 w-5 text-muted-foreground" weight="duotone" />
                   )}
                 </TableCell>
-                <TableCell>
-                  <div>
+                <TableCell className="max-w-[200px] sm:max-w-sm md:max-w-md whitespace-normal">
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       {onRowClick ? (
                         <button
                           onClick={() => onRowClick(resource)}
-                          className="font-medium hover:underline hover:text-primary text-left"
+                          className="font-medium hover:underline hover:text-primary text-left line-clamp-1 break-words"
                         >
                           {resource.title}
                         </button>
                       ) : (
                         <Link
                           href={`/resources/${resource.id}`}
-                          className="font-medium hover:underline hover:text-primary"
+                          className="font-medium hover:underline hover:text-primary line-clamp-1 break-words"
                         >
                           {resource.title}
                         </Link>
                       )}
                       {lastViewed != null && new Date(resource.createdAt).getTime() > lastViewed && (
-                        <Badge className="h-4 px-1.5 text-[10px] bg-blue-600 text-white border-0">NEW</Badge>
+                        <Badge className="h-4 px-1.5 text-[10px] bg-blue-600 text-white border-0 shrink-0">NEW</Badge>
                       )}
                     </div>
                     {resource.description && (
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1 break-words">
                         {resource.description}
                       </p>
                     )}
                   </div>
                 </TableCell>
-                <TableCell>
+                <TableCell className="hidden md:table-cell">
                   <Badge variant="outline" className={`text-xs ${TYPE_COLORS[resource.resourceType] ?? ''}`}>
                     {resource.resourceType}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
+                <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
                   {resource.organization}
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
+                <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                   {new Date(resource.createdAt).toLocaleDateString()}
                 </TableCell>
                 <TableCell className="text-right">
