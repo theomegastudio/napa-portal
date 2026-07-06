@@ -232,7 +232,7 @@ export default function EditResourceDialogEnhanced({
           <Edit className="h-4 w-4" />
         </DialogTrigger>
       )}
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Resource</DialogTitle>
           <DialogDescription>

@@ -62,7 +62,7 @@ export default function VersionHistoryDialog({ resourceId, resourceTitle }: Vers
       <DialogTrigger render={<Button variant="ghost" size="icon" className="hover:bg-gray-200" />}>
         <Clock className="h-4 w-4" />
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Version History</DialogTitle>
           <DialogDescription>
