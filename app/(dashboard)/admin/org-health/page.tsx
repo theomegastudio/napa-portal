@@ -150,12 +150,12 @@ export default function OrgHealthPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold">Org Health</h2>
           <p className="text-sm text-muted-foreground">Engagement metrics for {year}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" render={<Link href="/admin/meetings" />}>Manage Meetings</Button>
           <Select value={year} onValueChange={setYear}>
             <SelectTrigger className="w-32"><span>{year}</span></SelectTrigger>

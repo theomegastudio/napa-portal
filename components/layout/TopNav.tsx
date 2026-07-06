@@ -10,6 +10,8 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb'
+import { SidebarTrigger } from '@/components/ui/sidebar'
+import { Separator } from '@/components/ui/separator'
 
 const SEGMENT_LABELS: Record<string, string> = {
   '': 'Home',
@@ -56,7 +58,9 @@ export default function TopNav() {
   const crumbs = buildCrumbs(pathname)
 
   return (
-    <header className="h-14 border-b bg-background flex items-center px-6 shrink-0 rounded-t-lg">
+    <header className="h-14 border-b bg-background flex items-center gap-2 px-4 sm:px-6 shrink-0 rounded-t-lg">
+      <SidebarTrigger className="-ml-1 md:hidden" />
+      <Separator orientation="vertical" className="mr-1 h-4 md:hidden" />
       <Breadcrumb>
         <BreadcrumbList>
           {crumbs.map((crumb, idx) => (

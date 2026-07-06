@@ -172,12 +172,12 @@ export default function MeetingsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold">Meetings</h2>
           <p className="text-sm text-muted-foreground">Monthly meetings, NAPAAM, and other gatherings. Click a row to manage attendance.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={exportCsv}>
             <FileDown className="h-4 w-4 mr-2" />Export CSV
           </Button>

@@ -201,8 +201,8 @@ export default function MeetingDetailPage() {
         </div>
       ) : (
         <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-3">
+          <div className="space-y-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-3">
               <h2 className="text-xl font-semibold">{meeting.title}</h2>
               <Badge variant="outline">{TYPE_LABEL[meeting.meetingType]}</Badge>
             </div>
@@ -211,7 +211,7 @@ export default function MeetingDetailPage() {
             </p>
             {meeting.notes && <p className="text-sm">{meeting.notes}</p>}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <Button variant="outline" onClick={() => setEditing(true)}>Edit</Button>
             <Button variant="destructive" onClick={() => setDeleting(true)}><Trash className="h-4 w-4" /></Button>
           </div>
